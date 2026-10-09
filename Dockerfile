@@ -26,7 +26,10 @@ RUN apt-get update \
       strongswan-charon strongswan-swanctl libstrongswan-standard-plugins libstrongswan-extra-plugins libcharon-extra-plugins \
       nftables iptables iproute2 tini ca-certificates procps \
  && rm -rf /var/lib/apt/lists/* \
- && rm -f /etc/ocserv/ocserv.conf
+ && rm -f /etc/ocserv/ocserv.conf \
+ # ssl-cert (an ocserv dependency) generates a snakeoil key at install time:
+ # unused, and it would be the same key in every copy of the image.
+ && rm -f /etc/ssl/private/ssl-cert-snakeoil.key /etc/ssl/certs/ssl-cert-snakeoil.pem
 COPY --from=clients / /usr/share/vpngw/clients
 COPY --from=build /out/vpngw /usr/local/bin/vpngw
 ENV DATA_DIR=/data
