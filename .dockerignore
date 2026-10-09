@@ -1,0 +1,7 @@
+.git
+data
+doc
+docs
+test/e2e/.state
+*.md
+!README.md

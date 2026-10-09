@@ -1,0 +1,29 @@
+# Secrets and certificates supplied for development
+doc/secrets.md
+doc/tls.key
+doc/tls.crt
+
+/clients/
+/data/
+/bin/
+/dist/
+*.test
+coverage.out
+test/e2e/.state/
+
+# Dev deployment state and secrets
+deploy/dev/.env
+deploy/dev/_data/
+test/e2e/e2e.env
+
+# goproxy source checkout (separate repository, vendored by scripts/sync-goproxy.sh)
+/go-proxy/
+/test/e2e/.state/
+doc/fixes.md
+/vpngw
+__pycache__/
+*.pyc
+
+# Client installers: only the list is kept in git, the files go into the image
+/clients/*
+!/clients/info.txt

@@ -1,0 +1,137 @@
+{{define "content"}}{{$d := .Data}}{{$st := $d.Status}}
+<div class="row between">
+  <h1>Tunnels</h1>
+  <form method="post" action="/admin/tunnels/restart" class="inline-form" data-confirm="Restart the tunnel node? All tunnels reconnect."><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn">Restart node</button></form>
+</div>
+
+<div class="grid grid-2 section">
+  <section class="card glass">
+    <h2>This node</h2>
+    <dl class="kv">
+      <dt>Name</dt><dd class="mono">{{$d.SiteName}}</dd>
+      <dt>State</dt><dd>{{if $st.Running}}<span class="pill ok"><span class="dot"></span>running</span> <span class="faint">since {{ago $st.Since}}</span>{{else if $st.Peers}}<span class="pill bad"><span class="dot"></span>stopped</span>{{else}}<span class="pill">idle — no sites</span>{{end}}</dd>
+      {{if $st.Error}}<dt>Error</dt><dd><span class="pill bad">{{$st.Error}}</span></dd>{{end}}
+      <dt>Public key</dt><dd><span class="mono key-wrap" id="node-pub">{{$st.PublicKey}}</span>
+        <div class="row mt-8"><button class="btn small" type="button" data-copy="node-pub">Copy</button>
+        {{if $d.KeyConfigured}}<span class="faint">set with TUNNEL_PRIVATE_KEY</span>
+        {{else}}<form method="post" action="/admin/tunnels/regenerate-key" class="inline-form" data-confirm="Generate a new key pair for this node? All tunnels stay down until every site is given the new public key."><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn small danger">Regenerate</button></form>{{end}}</div></dd>
+      <dt>Tunnel address</dt><dd><span class="mono">{{$d.Address}}</span>{{if $d.AddressAuto}} <span class="pill">automatic</span>{{end}}</dd>
+      <dt>Listen</dt><dd class="mono">{{if $d.Listen}}{{$d.Listen}} ({{$d.Transport}}){{else}}—{{end}}</dd>
+    </dl>
+  </section>
+  <section class="card glass">
+    <h2>Internet exits</h2>
+    <h3>Routed hosts</h3>
+    <p class="faint">{{if $d.TransitSources}}<span class="mono">{{$d.TransitSources}}</span> reach the internet via:{{else}}Set TUNNEL_TRANSIT_SOURCES to route hosts through this node.{{end}}</p>
+    <form method="post" action="/admin/tunnels/transit-gateway" class="input-with-button mt-8">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <select name="gateway" aria-label="Internet exit for routed hosts"{{if $d.TransitFixed}} disabled title="Set in the environment (TUNNEL_TRANSIT_GATEWAY)"{{end}}>
+        <option value="">host default gateway</option>
+        {{range $d.Exits}}<option value="{{.}}" {{if eq . $d.TransitGateway}}selected{{end}}>site {{.}}</option>{{end}}
+        {{if $d.TransitGateway}}{{if $d.TransitGatewayInfo.Missing}}<option value="{{$d.TransitGateway}}" selected>{{$d.TransitGateway}} (not found)</option>{{end}}{{end}}
+      </select>
+      {{if $d.TransitFixed}}<span class="faint">set in the environment</span>{{else}}<button class="btn small">Apply</button>{{end}}
+    </form>
+    {{with $d.TransitGatewayInfo}}{{if .Missing}}<div class="alert bad mt-8">{{.Desc}}</div>{{end}}{{end}}
+    {{if $d.TransitDomains}}<p class="mt-8">Sites {{range $d.TransitDomains}}<span class="tag">{{.}}</span> {{end}}{{with $d.TransitExcept}}<span class="faint">except</span> {{range .}}<span class="tag">{{.}}</span> {{end}}{{end}}via {{$d.TransitDomainsVia}}</p>
+    <p class="faint">{{if $d.DomainDNS.IsValid}}The hosts need DNS server <span class="mono">{{$d.DomainDNS}}</span> (routed through this node).{{else}}VPN_DOMAIN_POOL is not usable: these sites are not redirected.{{end}}</p>{{end}}
+    {{if $d.Gateways}}<h3 class="mt-16">vpnGateway of groups</h3>
+    <dl class="kv">{{range $gw, $g := $d.Gateways}}<dt class="mono">{{$gw}}</dt><dd>{{if $g.Missing}}<span class="pill bad">not found</span> <span class="faint">traffic is dropped</span>{{else}}{{$g.Desc}}{{end}}</dd>{{end}}</dl>{{end}}
+  </section>
+</div>
+
+<section class="card glass section">
+  <h2>Sites</h2>
+  <div class="table-wrap"><table class="peers">
+    <thead><tr><th>Site</th><th>State</th><th>Connection</th><th>Behind the site</th><th>May reach here</th><th class="num">Traffic</th><th></th></tr></thead>
+    <tbody>
+    {{range $st.Peers}}
+    <tr>
+      <td><span class="nowrap"><b>{{.Name}}</b>{{if eq .Source "env"}} <span class="pill">env</span>{{end}}</span>
+        <div class="faint mono nowrap">{{.Interface}}</div></td>
+      <td>{{if .Disabled}}<span class="pill">disabled</span>
+          {{else if .Connected}}{{range .Links}}<div><span class="pill ok"><span class="dot"></span>{{.Direction}}</span> <span class="faint">{{.Remote}} · {{ago .Since}}{{if .LastRx}} · rx {{ago .LastRx}}{{end}}</span></div>{{end}}
+          {{else}}<span class="pill bad"><span class="dot"></span>down</span>{{end}}
+          {{if and (not .Disabled) (not .InterfaceUp)}}<div><span class="pill warn">no interface</span></div>{{end}}</td>
+      <td>{{if .Endpoint}}<div class="faint">we connect to{{if .Transport}} · {{.Transport}}{{end}}</div><div class="mono nowrap">{{.Endpoint}}</div>{{range .Links}}{{if .TunnelIP}}<div class="faint mt-4" title="Address this site assigned to us inside the tunnel">tunnel address</div><div class="mono nowrap">{{.TunnelIP}}</div>{{end}}{{end}}
+          {{else}}{{if .From}}<div class="faint">connects from{{if .Transport}} · {{.Transport}}{{end}}</div><div class="mono nowrap">{{.From}}</div>{{else}}<div class="faint">waits for the site to connect</div>{{end}}
+          <div class="faint mt-4" title="Address this node assigns to the site inside the tunnel">tunnel address</div><div class="mono nowrap">{{.Address}}</div>{{end}}</td>
+      <td>{{range .Subnets}}<span class="tag">{{.}}</span>{{end}}{{if .Exit}}<span class="pill ok">internet exit</span>{{end}}{{if not (or .Subnets .Exit)}}<span class="faint">—</span>{{end}}</td>
+      <td>{{range .Allow}}{{if eq .Bits 0}}<span class="pill warn">our internet</span>{{else}}<span class="tag">{{.}}</span>{{end}}{{else}}<span class="faint">nothing</span>{{end}}</td>
+      <td class="num"><div>↓ {{bytes .RxBytes}}</div><div class="faint">↑ {{bytes .TxBytes}}</div></td>
+      <td><div class="actions">
+        <a class="btn small" href="/admin/tunnels?config={{.Name}}#remote">Other side</a>
+        {{if eq .Source "admin"}}
+        <a class="btn small" href="/admin/tunnels?edit={{.Name}}#edit">Edit</a>
+        <form method="post" action="/admin/tunnels/toggle" class="inline-form"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{.Name}}"><button class="btn small">{{if .Disabled}}Enable{{else}}Disable{{end}}</button></form>
+        <form method="post" action="/admin/tunnels/delete" class="inline-form" data-confirm="Delete site {{.Name}}?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{.Name}}"><button class="btn small danger">Delete</button></form>
+        {{end}}
+      </div></td>
+    </tr>
+    {{else}}<tr><td colspan="7" class="muted">No sites yet.</td></tr>{{end}}
+    </tbody></table></div>
+</section>
+
+{{if $d.RemoteConfig}}
+<section class="card glass section" id="remote">
+  <h2>Settings for the other side ({{$d.ConfigPeer}})</h2>
+  <p class="muted">Environment for the gateway at site {{$d.ConfigPeer}}, mirroring this peer: what is behind us for it, and what we may reach there. Its own TUNNEL_PRIVATE_KEY is the private half of the key above.</p>
+  <pre class="cmd" id="remote-cfg">{{$d.RemoteConfig}}</pre>
+  <button class="btn small" type="button" data-copy="remote-cfg">Copy</button>
+</section>
+{{end}}
+
+<section class="card glass section" id="edit">
+  {{$f := $d.Form}}
+  {{if $f.Edit}}<h2>Edit site {{$f.Name}}</h2>{{else}}<h2>Add site</h2>{{end}}
+  {{if $d.FormError}}<div class="alert bad">{{$d.FormError}}</div>{{end}}
+  <form method="post" action="/admin/tunnels#edit" class="peer-form">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{if $f.Edit}}<input type="hidden" name="edit" value="1">{{end}}
+
+    <fieldset class="grid grid-2">
+      <legend>1 · Connection</legend>
+      <div><label for="pf-name">Name</label><input id="pf-name" name="name" value="{{$f.Name}}" {{if $f.Edit}}readonly{{else}}required placeholder="dc1"{{end}}>
+        <p class="hint">Used in <code>vpnGateway</code> and the interface name (gp-…).</p></div>
+      <div><label for="pf-ep">Address of the site</label><input id="pf-ep" name="endpoint" value="{{$f.Endpoint}}" placeholder="dc1.example.com:444">
+        <p class="hint">host:port if we connect to it. Empty if it connects to us{{if not $d.Listen}} (needs TUNNEL_LISTEN){{end}} — it then gets a tunnel address automatically.</p></div>
+      <div class="span-2"><label for="pf-pub">Public key of the site</label>
+        <input id="pf-pub" name="public_key" value="{{$f.PublicKey}}" required autocomplete="off" spellcheck="false">
+        <p class="hint">Copy it from the site's Tunnels page (This node → Public key).</p></div>
+    </fieldset>
+
+    <fieldset class="grid grid-2">
+      <legend>2 · Behind the site</legend>
+      <div><label for="pf-sub">Networks we reach there</label><input id="pf-sub" name="subnets" value="{{$f.Subnets}}" placeholder="10.20.0.0/16">
+        <p class="hint">Routed into this tunnel for VPN clients (if their profile allows) and for TUNNEL_TRANSIT_SOURCES. Empty if nothing.</p></div>
+      <div><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="exit" value="1" {{if $f.Exit}}checked{{end}}> Internet exit</label>
+        <p class="hint">Groups with <code>vpnGateway</code> = this name send their internet through the site.</p></div>
+    </fieldset>
+
+    <fieldset class="grid grid-2">
+      <legend>3 · The site may reach here</legend>
+      <div><label for="pf-allow">Our networks open to the site</label><input id="pf-allow" name="allow" value="{{$f.Allow}}" placeholder="10.6.0.0/16">
+        <p class="hint">The site's traffic leaves with this gateway's address. <code>0.0.0.0/0</code> = our internet. Empty = nothing.</p></div>
+    </fieldset>
+
+    <details class="mt-16"{{if or $f.Address $f.Transport $f.PSK (not $f.NAT) $f.Disabled}} open{{end}}><summary>Advanced</summary>
+      <div class="grid grid-2 mt-8">
+        <div><label for="pf-tr">Transport</label><select id="pf-tr" name="transport">{{range $d.Transports}}<option value="{{.}}" {{if eq . $f.Transport}}selected{{end}}>{{if .}}{{.}}{{else}}node default ({{$d.Transport}}){{end}}</option>{{end}}</select></div>
+        <div><label for="pf-psk">PSK</label><input id="pf-psk" name="psk" type="password" value="{{$f.PSK}}" autocomplete="new-password" placeholder="{{if $f.Edit}}keep current{{else}}TUNNEL_PSK{{end}}"></div>
+        <div><label for="pf-addr">Tunnel address of the site</label><input id="pf-addr" name="address" value="{{$f.Address}}" placeholder="automatic">
+          <p class="hint">Only for sites that connect here; normally leave it automatic.</p></div>
+        <div><label for="pf-ka">Keepalive, s</label><input id="pf-ka" name="keepalive" value="{{if $f.Keepalive}}{{$f.Keepalive}}{{else}}0{{end}}">
+          <p class="hint">0 = default.</p></div>
+        <div class="span-2 row">
+          <label class="check"><input type="checkbox" name="nat" value="1" {{if $f.NAT}}checked{{end}}> NAT VPN clients — they reach the site as this gateway, so it needs no routes back</label>
+          {{if $f.Edit}}<label class="check"><input type="checkbox" name="disabled" value="1" {{if $f.Disabled}}checked{{end}}> disabled</label>{{end}}
+        </div>
+      </div>
+    </details>
+
+    <div class="row mt-16"><button class="btn primary">Save site</button>{{if or $f.Edit $d.FormError}} <a class="btn" href="/admin/tunnels">Cancel</a>{{end}}</div>
+  </form>
+  <p class="faint mt-16">Sites can also be declared in the environment: TUNNEL_PEER_&lt;NAME&gt;_PUBLIC_KEY, _ENDPOINT, _SUBNETS, _EXIT, _ALLOW, _ADDRESS, _TRANSPORT, _PSK, _NAT.</p>
+</section>
+{{end}}

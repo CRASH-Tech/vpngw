@@ -1,0 +1,16 @@
+{{define "content"}}
+<div class="auth">
+  <div class="auth-card card glass">
+    {{template "auth-mark"}}
+    <h1>{{if .VPN}}Local sign-in{{else}}Sign in{{end}}</h1>
+    <p class="sub">{{if .VPN}}Administrator account for when single sign-on is unavailable.{{else}}Administrator account.{{end}}</p>
+    <form method="post" action="/login/local" class="left">
+      <div class="field"><label for="u">User name</label><input id="u" name="username" autocomplete="username" required autofocus></div>
+      <div class="field"><label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary big w-full">Sign in</button>
+    </form>
+    {{if .VPN}}<div class="auth-divider"><span>or</span></div>
+    <a class="auth-alt" href="/">Continue with SSO</a>{{end}}
+  </div>
+</div>
+{{end}}

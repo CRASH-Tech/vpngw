@@ -1,0 +1,30 @@
+{{define "content"}}{{$d := .Data}}
+<div class="row between"><h1>Journal</h1><a class="btn" href="{{$d.CSV}}">Export CSV</a></div>
+<section class="card glass section">
+  <form class="filters" method="get" action="/admin/audit">
+    <div><label for="a-user">User</label><input id="a-user" name="user" value="{{$d.F.Get "user"}}"></div>
+    <div><label for="a-event">Event</label><select id="a-event" name="event" data-autosubmit>
+      <option value="">All</option>{{range $d.Events}}<option value="{{.}}" {{if eq . ($d.F.Get "event")}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+    <div><label for="a-proto">Protocol</label><select id="a-proto" name="protocol" data-autosubmit>
+      <option value="">All</option>{{range $d.Protocols}}<option value="{{.}}" {{if eq . ($d.F.Get "protocol")}}selected{{end}}>{{proto .}}</option>{{end}}</select></div>
+    <div><label for="a-since">From</label><input id="a-since" type="date" name="since" value="{{$d.F.Get "since"}}"></div>
+    <div><label for="a-until">To</label><input id="a-until" type="date" name="until" value="{{$d.F.Get "until"}}"></div>
+    <div><label for="a-q">Text</label><input id="a-q" name="q" value="{{$d.F.Get "q"}}"></div>
+    <div><button class="btn">Filter</button></div>
+  </form>
+  <div class="table-wrap mt-16"><table>
+    <thead><tr><th>Time (UTC)</th><th>Event</th><th>User</th><th>Protocol</th><th>IP</th><th>Message</th><th>By</th></tr></thead>
+    <tbody>
+    {{range $d.Entries}}<tr>
+      <td class="nowrap">{{ts .TS}}</td>
+      <td><span class="pill {{if eq .Level "warn"}}warn{{else if eq .Level "error"}}bad{{end}}">{{.Event}}</span></td>
+      <td>{{if .Username}}<a href="/admin/audit?user={{.Username}}">{{.Username}}</a>{{end}}</td>
+      <td>{{if .Protocol}}{{proto .Protocol}}{{end}}</td>
+      <td class="mono">{{.IP}}</td>
+      <td>{{.Message}}</td>
+      <td class="faint">{{.Actor}}</td>
+    </tr>{{else}}<tr><td colspan="7" class="muted">No entries.</td></tr>{{end}}
+    </tbody></table></div>
+  <div class="row mt-16">{{if $d.Paged}}<a class="btn" href="{{$d.First}}">Newest</a>{{end}}{{if $d.Next}}<a class="btn" href="{{$d.Next}}">Older entries</a>{{end}}</div>
+</section>
+{{end}}

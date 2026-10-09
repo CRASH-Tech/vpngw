@@ -1,0 +1,14 @@
+{{define "content"}}
+<div class="auth">
+  <div class="auth-card card glass">
+    {{template "auth-mark"}}
+    <h1>Sign in</h1>
+    <p class="sub">Use your company account to continue.</p>
+    {{if .Data.IdPError}}<div class="alert warn left">The sign-in service did not respond recently. Signing in may fail.</div>{{end}}
+    <a class="btn primary big w-full" href="/login">Continue with SSO
+      <svg class="btn-arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <div class="auth-divider"><span>or</span></div>
+    <a class="auth-alt" href="/login/local">Local administrator</a>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,23 @@
+{{define "content"}}{{$d := .Data}}
+<div class="row between">
+  <div><h1 class="mono">{{$d.File.Name}}</h1><p class="muted">{{proto $d.File.Backend}} · <span class="mono">{{$d.File.Path}}</span></p></div>
+  <a class="btn" href="/admin/configs">All configs</a>
+</div>
+{{if $d.Overridden}}<div class="alert warn">This file was edited manually by {{$d.Override.UpdatedBy}} {{ago $d.Override.UpdatedAt}}. Settings changes do not affect it until it is reset.</div>{{end}}
+<section class="card glass section">
+  <form method="post" action="/admin/configs/{{$d.File.Name}}">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <textarea name="content" spellcheck="false">{{$d.Effective}}</textarea>
+    <div class="row mt-16">
+      <button class="btn primary" name="action" value="save" data-confirm="Save and restart {{proto $d.File.Backend}}?">Save and restart</button>
+      {{if $d.Overridden}}<button class="btn danger" name="action" value="reset">Reset to generated</button>{{end}}
+    </div>
+  </form>
+</section>
+{{if $d.Diff}}
+<section class="card glass section">
+  <h2>Difference from generated</h2>
+  <div class="diff">{{$d.Diff}}</div>
+</section>
+{{end}}
+{{end}}

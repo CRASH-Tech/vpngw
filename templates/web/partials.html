@@ -1,0 +1,48 @@
+{{define "session-rows"}}{{$csrf := .CSRF}}
+{{range .Sessions}}
+<tr>
+  <td data-sort="{{.Username}}"><div>{{.Username}}{{if .Emergency}} <span class="pill warn">emergency</span>{{end}}</div><div class="faint">{{.Email}}</div></td>
+  <td>{{proto .Protocol}}</td>
+  <td class="mono">{{.ClientIP}}</td>
+  <td class="mono" data-sort="{{.VPNIP}}">{{.VPNIP}}</td>
+  <td data-sort="{{.StartedAt.Unix}}">{{if eq .State "active"}}<div>{{ts .StartedAt}}</div><div class="faint">{{ago .StartedAt}}</div>{{else}}<span class="pill warn">connecting</span>{{end}}</td>
+  <td class="num" data-sort="{{.BytesIn}}"><div>{{bytes .BytesIn}}</div><div class="faint">{{rate .RateIn}}</div></td>
+  <td class="num" data-sort="{{.BytesOut}}"><div>{{bytes .BytesOut}}</div><div class="faint">{{rate .RateOut}}</div></td>
+  <td class="profile"><span class="tag" title="{{join .Profile.AllowStrings ", "}}">{{.Profile.ID}}</span>{{if .Group}}<div class="faint">{{.Group}}</div>{{end}}{{if .Profile.Gateway}}<div class="faint">via {{.Profile.Gateway}}</div>{{end}}</td>
+  <td><div class="actions">
+    <a class="btn small" href="/admin/sessions/check?ip={{.VPNIP}}">Check</a>
+    <form method="post" action="/admin/sessions/disconnect" class="inline-form" data-confirm="Disconnect session {{.VPNIP}}?">
+      <input type="hidden" name="csrf" value="{{$csrf}}"><input type="hidden" name="ip" value="{{.VPNIP}}">
+      <button class="btn small">Disconnect</button></form>
+    {{if not .Emergency}}
+    <form method="post" action="/admin/users/{{.UserID}}/revoke" class="inline-form" data-confirm="Disconnect {{.Username}} everywhere and revoke the VPN password?">
+      <input type="hidden" name="csrf" value="{{$csrf}}">
+      <button class="btn small danger">Disconnect user</button></form>
+    {{end}}
+  </div></td>
+</tr>
+{{else}}
+<tr><td colspan="9" class="muted">No active sessions.</td></tr>
+{{end}}
+{{end}}
+
+{{define "session-foot"}}
+<tr><td colspan="5">Total: {{.Count}} session(s)</td>
+<td class="num"><div>{{bytes .In}}</div><div class="faint">{{rate .RateIn}}</div></td>
+<td class="num"><div>{{bytes .Out}}</div><div class="faint">{{rate .RateOut}}</div></td><td colspan="2"></td></tr>
+{{end}}
+
+{{define "chart"}}
+<svg class="chart" viewBox="0 0 600 160" preserveAspectRatio="none" role="img" aria-label="traffic chart">
+  <line x1="0" y1="145.5" x2="600" y2="145.5" stroke="rgba(255,255,255,.12)"/>
+  {{range .Bars}}
+  <g><title>{{.Label}}</title>
+    <rect class="rx" x="{{.X}}" y="{{.YRX}}" width="{{.W}}" height="{{.HRX}}" rx="2"/>
+    <rect class="tx" x="{{add2 .X .W}}" y="{{.YTX}}" width="{{.W}}" height="{{.HTX}}" rx="2"/>
+  </g>
+  {{end}}
+</svg>
+<p class="faint">Peak per bucket: {{bytes (uint .Max)}}</p>
+{{end}}
+
+{{define "auth-mark"}}<div class="auth-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor"/></svg></div>{{end}}

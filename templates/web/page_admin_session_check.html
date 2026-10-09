@@ -1,0 +1,53 @@
+{{define "content"}}{{$d := .Data}}{{$s := $d.S}}
+<div class="row between">
+  <div><h1>Check {{$s.VPNIP}}</h1><p class="muted">{{$s.Login}} · {{proto $s.Protocol}} · from {{$s.ClientIP}}</p></div>
+  <div class="row"><a class="btn" href="/admin/sessions/check?ip={{$s.VPNIP}}{{if $d.Dst}}&amp;dst={{$d.Dst}}{{end}}">Refresh</a><a class="btn" href="/admin">Sessions</a></div>
+</div>
+
+<div class="grid grid-2 section align-start">
+  <section class="card glass">
+    <h2>Session</h2>
+    <dl class="kv">
+      <dt>State</dt><dd>{{if eq $s.State "active"}}<span class="pill ok"><span class="dot"></span>connected</span> <span class="faint">{{ago $s.StartedAt}}</span>
+        {{else}}<span class="pill warn">connecting</span> <span class="faint">the client has not finished connecting; the session is released after 2 minutes</span>{{end}}</dd>
+      <dt>Traffic</dt><dd>received {{bytes $s.BytesIn}} · sent {{bytes $s.BytesOut}} <span class="faint">— refresh while the client pings: received grows if packets arrive, sent if replies go back</span></dd>
+      <dt>Networks</dt><dd>{{if $s.Profile.FullTunnel}}<span class="pill">all traffic</span>{{else}}{{range $s.Profile.Networks}}<span class="tag">{{.}}</span>{{else}}<span class="faint">none</span>{{end}}{{end}}</dd>
+      {{if $s.Profile.Domains}}<dt>Domains</dt><dd>{{range $s.Profile.DomainLabels}}<span class="tag">{{.}}</span>{{end}} {{with $s.Profile.ExceptLabels}}<span class="faint">except</span> {{range .}}<span class="tag">{{.}}</span> {{end}}{{end}} <div class="faint">resolved with {{range $s.Profile.Upstream}}{{.}} {{else}}this gateway's resolvers {{end}}through {{$d.Gateway}}</div></dd>{{end}}
+      <dt>Internet via</dt><dd>{{$d.Gateway}}</dd>
+      <dt>DNS</dt><dd>{{range $s.Profile.DNS}}<span class="tag">{{.}}</span>{{else}}<span class="faint">none (the client keeps its own)</span>{{end}}</dd>
+    </dl>
+  </section>
+  <section class="card glass">
+    <h2>Firewall</h2>
+    <dl class="kv">
+      <dt>Entry</dt><dd>{{if $d.FW.InFirewall}}<span class="pill ok">present</span> <span class="faint mono">{{$d.FW.Chain}}</span>{{else}}<span class="pill bad">missing</span> <span class="faint">{{$d.FW.Error}}</span>{{end}}</dd>
+      <dt>Routing mark</dt><dd class="mono">{{if $d.FW.Mark}}{{$d.FW.Mark}}{{else}}—{{end}}</dd>
+      <dt>Accepted</dt><dd>{{if $d.FW.Accepted}}{{$d.FW.Accepted}} <span class="faint">(all sessions of this login's networks)</span>{{else}}—{{end}}</dd>
+      {{range $k, $v := $d.Counters}}<dt>{{$k}}</dt><dd>{{index $v 0}} packets</dd>{{end}}
+    </dl>
+    <p class="faint mt-8">Counters are for the whole gateway: refresh while the client pings and see which one grows.</p>
+  </section>
+</div>
+
+<section class="card glass section">
+  <div class="row between"><h2>Where its traffic goes</h2>
+    <form method="get" action="/admin/sessions/check" class="input-with-button">
+      <input type="hidden" name="ip" value="{{$s.VPNIP}}">
+      <input name="dst" value="{{$d.Dst}}" placeholder="another address, e.g. 10.4.0.10" aria-label="Destination">
+      <button class="btn small">Check</button>
+    </form>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Destination</th><th>Allowed</th><th>Goes</th><th>Result</th></tr></thead>
+    <tbody>
+    {{range $d.Dests}}<tr>
+      <td>{{if .Domain}}<span class="mono">{{.Domain}}</span>{{else if .Net.IsValid}}<span class="mono" title="tested with {{.Addr}}">{{.Net}}</span>{{else}}<span class="mono">{{.Addr}}</span>{{end}} <div class="faint">{{.Label}}</div></td>
+      <td>{{if .Allowed}}<span class="pill ok">yes</span>{{else}}<span class="pill bad">no</span>{{end}}</td>
+      <td title="{{.Tech}}">{{.Path}}{{if .Site}} {{if .SiteUp}}<span class="pill ok">up</span>{{else}}<span class="pill bad">down</span>{{end}}{{end}}
+        {{if .Note}}<div class="faint">{{.Note}}</div>{{end}}{{if and .Site (not (isZero .SiteRx))}}<div class="faint">last packet from it {{ago .SiteRx}}</div>{{end}}</td>
+      <td>{{if .OK}}<span class="pill ok">ok</span>{{else}}<span class="pill bad">problem</span> {{.Verdict}}{{end}}</td>
+    </tr>{{end}}
+    </tbody></table></div>
+  <p class="faint mt-8">How this gateway forwards the client's packets; hover a route for the kernel details. Beyond it, a site must allow them (its ALLOW for this gateway).</p>
+</section>
+{{end}}

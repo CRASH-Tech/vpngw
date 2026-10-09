@@ -1,0 +1,131 @@
+{{define "content"}}{{$d := .Data}}
+<div class="row between">
+  <div>
+    <h1>My VPN</h1>
+    <p class="muted">{{if $d.Emergency}}Emergency administrator — works without the identity provider.{{else}}{{$d.Username}}{{if $d.Email}} · {{$d.Email}}{{end}}{{end}}</p>
+  </div>
+</div>
+
+{{if $d.SelfSigned}}<div class="alert warn">The gateway uses a temporary self-signed certificate. Cisco Secure Client and built-in IKEv2 clients will refuse to connect until a trusted certificate is installed.</div>{{end}}
+{{if $d.RoutesWidened}}<div class="alert ok">Your access was extended. Reconnect to receive the new routes{{if $d.Enabled.ikev2}} (on Windows IKEv2, run the setup script again){{end}}.</div>{{end}}
+{{if $d.NoRoutes}}<div class="alert bad">None of your groups grants VPN routes. Ask the administrator to add you to a VPN group.</div>{{end}}
+
+{{if $d.LastCheckErr}}<div class="alert warn">The identity provider check failed: {{$d.LastCheckErr}}</div>{{end}}
+
+<section class="card glass section">
+  <div class="row between"><h2>Credentials</h2>
+    {{if not $d.Emergency}}<form method="post" action="/password/reissue" class="inline-form" data-confirm="Issue a new password? The current password stops working and all your VPN sessions are disconnected.">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <button class="btn small danger">Reissue password</button>
+    </form>{{end}}
+  </div>
+  <div class="grid grid-2">
+    <div class="field">
+      <label>VPN login</label>
+      <div class="secret-box">
+        <span class="value" id="vpn-login">{{$d.Username}}</span>
+        <button class="btn small" data-copy="vpn-login" type="button">Copy</button>
+      </div>
+      {{if not $d.Emergency}}<p class="faint mt-8">Add <code>@group</code> for one network or internet access — see <i>My networks</i>.</p>{{end}}
+    </div>
+    <div class="field">
+      <label>Password</label>
+      {{if $d.Emergency}}
+      <p class="muted">The emergency administrator password (EMERGENCY_PASS).</p>
+      {{else if $d.Password}}
+      <div class="secret-box">
+        <span class="value" id="vpn-password" data-value="{{$d.Password}}" data-hidden="true">••••••••••••••••••••••••</span>
+        <button class="btn small" type="button" data-toggle-secret="vpn-password">Show</button>
+        <button class="btn small" type="button" data-copy="vpn-password">Copy</button>
+      </div>
+      <p class="faint mt-8">{{if isZero $d.SessionExpires}}Valid while your company sign-in is active{{else}}Valid for <b>{{until $d.SessionExpires}}</b>; signing in here again extends it{{end}} · verified {{ago $d.LastCheckOK}}</p>
+      {{else}}
+      <p class="muted">No active password. Sign out and sign in again to get a new one.</p>
+      {{end}}
+    </div>
+  </div>
+</section>
+
+<section class="card glass section" id="connect">
+  <div class="row between">
+    <h2>Connect</h2>
+    <div class="tabs" data-tabs="proto">
+      {{if $d.Enabled.anyconnect}}<button type="button" data-tab="p-anyconnect">AnyConnect</button>{{end}}
+      {{if $d.Enabled.openvpn}}<button type="button" data-tab="p-openvpn">OpenVPN</button>{{end}}
+      {{if $d.Enabled.ikev2}}<button type="button" data-tab="p-ikev2">IKEv2</button>{{end}}
+    </div>
+  </div>
+  {{if gt (len $d.Endpoints) 1}}
+  <div class="row mt-16"><span class="faint">Server:</span>
+    <div class="tabs">{{range $i, $e := $d.Endpoints}}<a href="?ep={{$i}}#connect" title="{{$e.Host}}" class="{{if eq $i $d.EP}}active{{end}}">{{if $e.Label}}{{$e.Label}}{{else}}{{$e.Host}}{{end}}</a>{{end}}</div>
+  </div>
+  {{end}}
+  {{if $d.Enabled.anyconnect}}
+  <div class="tab-panel" id="p-anyconnect" data-tab-group="proto">
+    {{template "instructions-anyconnect" $d}}
+  </div>
+  {{end}}
+  {{if $d.Enabled.openvpn}}
+  <div class="tab-panel" id="p-openvpn" data-tab-group="proto">
+    {{template "instructions-openvpn" $d}}
+  </div>
+  {{end}}
+  {{if $d.Enabled.ikev2}}
+  <div class="tab-panel" id="p-ikev2" data-tab-group="proto">
+    {{template "instructions-ikev2" $d}}
+  </div>
+  {{end}}
+</section>
+
+<section class="card glass section">
+  <div class="row between"><h2>Active connections</h2><span class="faint">{{len $d.Sessions}} of {{$d.SessionLimit}} allowed</span></div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Protocol</th><th>Login</th><th>From</th><th>VPN address</th><th>Connected</th><th class="num">Received</th><th class="num">Sent</th><th></th></tr></thead>
+    <tbody>
+    {{range $d.Sessions}}
+      <tr>
+        <td>{{proto .Protocol}}</td>
+        <td class="mono">{{.Login}}</td>
+        <td class="mono">{{.ClientIP}}</td>
+        <td class="mono">{{.VPNIP}}</td>
+        <td>{{if eq .State "active"}}{{ago .StartedAt}}{{else}}<span class="pill warn">connecting</span>{{end}}</td>
+        <td class="num">{{bytes .BytesIn}}</td>
+        <td class="num">{{bytes .BytesOut}}</td>
+        <td><form method="post" action="/sessions/disconnect" class="inline-form" data-confirm="Disconnect this session?">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="ip" value="{{.VPNIP}}">
+          <button class="btn small danger">Disconnect</button></form></td>
+      </tr>
+    {{else}}
+      <tr><td colspan="8" class="muted">No active connections.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<details class="card glass section">
+  <summary><h2>My networks</h2><span class="faint">{{len $d.Logins}} {{if eq (len $d.Logins) 1}}login{{else}}logins{{end}} — what each login connects to</span></summary>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Login</th><th>Networks</th><th>DNS</th><th>Mode</th></tr></thead>
+    <tbody>
+    {{range $d.Logins}}
+      <tr>
+        <td><span class="mono nowrap">{{.Login}}</span></td>
+        {{if .Profile}}
+        <td>{{range .Profile.Networks}}<span class="tag">{{.}}</span>{{end}}{{if .Profile.Domains}}<div class="{{if .Profile.Networks}}mt-8{{end}}"><span class="faint">sites:</span> {{range .Profile.DomainLabels}}<span class="tag">{{.}}</span>{{end}} {{with .Profile.ExceptLabels}}<span class="faint">except</span> {{range .}}<span class="tag">{{.}}</span> {{end}}{{end}}</div>{{end}}{{range .Profile.Warnings}}<div class="mt-8"><span class="pill warn">{{.}}</span></div>{{end}}</td>
+        <td>{{if .Profile.Domains}}<span class="faint">this gateway</span>{{else}}{{range .Profile.DNS}}<span class="tag">{{.}}</span>{{else}}<span class="faint">—</span>{{end}}{{if .Profile.Domain}} <span class="faint">{{.Profile.Domain}}</span>{{end}}{{end}}</td>
+        <td>{{if .Profile.FullTunnel}}<span class="pill">All traffic</span>{{else}}<span class="pill">Split tunnel</span>{{end}}</td>
+        {{else}}
+        <td colspan="3"><span class="pill bad">{{.Error}}</span></td>
+        {{end}}
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="muted">No networks available.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</details>
+{{end}}

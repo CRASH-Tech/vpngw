@@ -1,0 +1,86 @@
+{{define "content"}}{{$d := .Data}}
+<h1>Status</h1>
+{{if not $.VPN}}<div class="alert">Tunnels only: OIDC_ISSUER is not set, so AnyConnect, OpenVPN and IKEv2 are off. Set OIDC in <a href="/admin/settings">Settings</a> and restart the container to enable user VPN.</div>{{end}}
+<section class="card glass section">
+  <div class="services">
+    {{if $.VPN}}
+    {{range $d.Processes}}
+    <div class="service" title="{{if .Running}}pid {{.PID}}, up {{ago .StartedAt}}{{end}}{{if .Restarts}} · {{.Restarts}} restarts{{end}}{{if .LastExit}} · last exit: {{.LastExit}}{{end}}">
+      <span class="label">{{.Name}}</span>
+      {{if .Running}}<span class="pill ok"><span class="dot"></span>running</span>{{else}}<span class="pill bad"><span class="dot"></span>down</span>{{end}}
+      <form method="post" action="/admin/processes/{{.Name}}/restart" class="inline-form" data-confirm="Restart {{.Name}}? Its VPN sessions will be dropped."><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn small icon" title="Restart {{.Name}}" aria-label="Restart {{.Name}}">↻</button></form>
+    </div>
+    {{end}}
+    <div class="service" title="{{$d.Issuer}}">
+      <span class="label">Identity provider</span>
+      {{if $d.IdPError}}<span class="pill bad"><span class="dot"></span>error</span><span class="faint">{{$d.IdPError}}</span>{{else}}<span class="pill ok" title="last success {{ago $d.IdPLastOK}}"><span class="dot"></span>ok</span>{{end}}
+    </div>
+    {{end}}
+    <div class="service">
+      <span class="label">Database</span>
+      {{if $d.DBError}}<span class="pill bad">error</span>{{else}}<span class="pill ok"><span class="dot"></span>ok</span>{{end}}
+    </div>
+  </div>
+</section>
+
+<div class="grid grid-2 section">
+  {{if $.VPN}}<section class="card glass">
+    <h2>Address pools</h2>
+    {{range $d.Pools}}
+    <div class="mt-16"><div class="row between"><b>{{proto .Protocol}}</b><span class="mono faint">{{.Prefix}}</span></div>
+      <div class="meter"><span class="w-{{pct .Used .Size}}" data-w="{{pct .Used .Size}}"></span></div>
+      <div class="faint">{{.Used}} of {{.Size}} in use ({{pct .Used .Size}}%)</div></div>
+    {{end}}
+  </section>{{end}}
+  <section class="card glass">
+    <h2>Certificate</h2>
+    {{with $d.Cert}}
+    <dl class="kv">
+      <dt>Source</dt><dd>{{if eq .Source "self-signed"}}<span class="pill warn">self-signed</span>{{else}}<span class="pill ok">{{.Source}}</span>{{end}}</dd>
+      <dt>Names</dt><dd>{{range .DNSNames}}<span class="tag">{{.}}</span>{{end}}</dd>
+      <dt>Issuer</dt><dd>{{.Issuer}}</dd>
+      <dt>Valid until</dt><dd>{{ts .NotAfter}} (in {{until .NotAfter}})</dd>
+      <dt>SHA-256</dt><dd class="mono faint">{{.Fingerprint}}</dd>
+      {{if .Error}}<dt>Error</dt><dd><span class="pill bad">{{.Error}}</span></dd>{{end}}
+    </dl>
+    {{end}}
+    {{if $.VPN}}<dl class="kv mt-16"><dt>VPN endpoints</dt><dd>{{range $d.Endpoints}}<div><span class="mono">{{.Host}}</span>{{if .Label}} <span class="faint">{{.Label}}</span>{{end}}</div>{{end}}</dd></dl>
+    {{if $d.Uncovered}}<div class="alert warn mt-8">Not covered by the certificate: {{join $d.Uncovered ", "}}. AnyConnect and IKEv2 clients cannot use these addresses (OpenVPN can).</div>{{end}}{{end}}
+    <details class="mt-16"><summary>Upload certificate</summary>
+      <form method="post" action="/admin/certificate" class="mt-8">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <div class="field"><label for="c-c">Certificate chain (PEM)</label><textarea id="c-c" name="cert" class="short" required></textarea></div>
+        <div class="field"><label for="c-k">Private key (PEM)</label><textarea id="c-k" name="key" class="short" required></textarea></div>
+        <button class="btn primary">Install</button>
+      </form>
+      <p class="faint">The file at TLS_CERT_FILE is watched too: replacing it reloads all services without dropping sessions.</p>
+    </details>
+  </section>
+</div>
+
+<div class="grid grid-2 section">
+  <section class="card glass">
+    <h2>Firewall</h2>
+    <dl class="kv">
+      <dt>NAT interface</dt><dd class="mono">{{if $d.Egress}}{{$d.Egress}}{{else}}auto{{end}}</dd>
+      {{range $k, $v := $d.Counters}}<dt>{{$k}}</dt><dd>{{index $v 0}} packets, {{bytes (index $v 1)}}</dd>{{end}}
+      {{range $gw, $ok := $d.Gateways}}<dt>gateway {{$gw}}</dt><dd>{{if $ok}}<span class="pill ok">route installed</span>{{else}}<span class="pill bad">interface missing</span>{{end}}</dd>{{end}}
+    </dl>
+    {{if $d.Ruleset}}<pre class="cmd mt-16">{{$d.Ruleset}}</pre>{{else}}<p class="mt-16"><a class="btn small" href="/admin/status?ruleset=1">Show nftables ruleset</a></p>{{end}}
+  </section>
+  <section class="card glass">
+    <h2>Blocked after failed logins</h2>
+    <div class="table-wrap"><table><tbody>
+    {{range $d.BlockKeys}}<tr><td class="mono">{{.}}</td><td>until {{ts (index $d.Blocks .)}}</td>
+      <td><form method="post" action="/admin/blocks/unblock" class="inline-form"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="key" value="{{.}}"><button class="btn small">Unblock</button></form></td></tr>
+    {{else}}<tr><td class="muted">Nothing is blocked.</td></tr>{{end}}
+    </tbody></table></div>
+  </section>
+</div>
+
+{{if $.VPN}}<section class="card glass section">
+  <h2>Recent process output</h2>
+  {{range $d.Processes}}<details><summary>{{.Name}}</summary><pre class="log-lines">{{range .LastLines}}{{.}}
+{{end}}</pre></details>{{end}}
+</section>{{end}}
+{{end}}

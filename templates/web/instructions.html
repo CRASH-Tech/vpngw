@@ -1,0 +1,282 @@
+{{define "platform-tabs"}}
+<div class="subtabs"><div class="tabs" data-tabs="{{.Group}}" data-platform-tabs data-prefix="{{.Prefix}}">
+  <button type="button" data-tab="{{.Prefix}}windows">Windows</button>
+  <button type="button" data-tab="{{.Prefix}}macos">macOS</button>
+  <button type="button" data-tab="{{.Prefix}}linux">Linux</button>
+  <button type="button" data-tab="{{.Prefix}}ios">iOS</button>
+  <button type="button" data-tab="{{.Prefix}}android">Android</button>
+</div></div>
+{{end}}
+
+{{define "first-login"}}{{if .Logins}}{{(index .Logins 0).Login}}{{else}}{{.Username}}{{end}}{{end}}
+
+{{/* A settings table: list of (field "Label" value "note"). Values starting
+     with "!" are options to pick, not text to type. */}}
+{{define "fields"}}
+<div class="fields">
+{{range .}}
+  <div class="field-row">
+    <div class="field-label">{{.Label}}</div>
+    <div class="field-values">
+      {{range .Values}}{{if choice .}}<span class="field-choice">{{choiceText .}}</span>{{else}}<span class="field-value"><span class="mono">{{.}}</span><button class="copy-mini" type="button" data-copy="" data-copy-value="{{.}}" title="Copy">Copy</button></span>{{end}}{{end}}
+      {{if .Note}}<div class="field-note">{{.Note}}</div>{{end}}
+    </div>
+  </div>
+{{end}}
+</div>
+{{end}}
+
+{{define "instructions-anyconnect"}}
+<p class="muted">Cisco Secure Client (AnyConnect) or OpenConnect.</p>
+{{template "platform-tabs" (dict "Group" "pf-ac" "Prefix" "ac-")}}
+<div class="tab-panel" id="ac-windows" data-tab-group="pf-ac">
+  {{template "client-apps" ($.ClientsFor "anyconnect" "windows")}}
+  <ol class="steps">
+    <li>Install <b>Cisco Secure Client</b> (AnyConnect VPN module) provided by your IT department.</li>
+    <li>Fill in and click <b>Connect</b>:</li>
+  </ol>
+  {{template "fields" (list
+    (field "Server address field" .Host "")
+    (field "Username" .LoginNames "user@group: the group selects the network")
+    (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ac-macos" data-tab-group="pf-ac">
+  {{template "client-apps" ($.ClientsFor "anyconnect" "macos")}}
+  <ol class="steps">
+    <li>Install <b>Cisco Secure Client</b> for macOS and allow its system extension in <i>System Settings → Privacy &amp; Security</i>.</li>
+    <li>Fill in and click <b>Connect</b>:</li>
+  </ol>
+  {{template "fields" (list
+    (field "Server address field" .Host "")
+    (field "Username" .LoginNames "")
+    (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ac-linux" data-tab-group="pf-ac">
+  {{template "client-apps" ($.ClientsFor "anyconnect" "linux")}}
+  <p><b>NetworkManager</b> (package <code>network-manager-openconnect-gnome</code>): <i>Settings → Network → VPN → + → Multi-protocol VPN client (openconnect)</i></p>
+  {{template "fields" (list
+    (field "Name" (profileNames .Host .LoginNames) "")
+    (field "VPN Protocol" "!Cisco AnyConnect or openconnect" "")
+    (field "Gateway" .Host "")
+    (field "User name" .LoginNames "")
+    (field "Password" "!the VPN password from this page" ""))}}
+  <p class="mt-16">Or in a terminal:</p>
+  <pre class="cmd">sudo openconnect --protocol=anyconnect --user={{template "first-login" .}} {{.Host}}</pre>
+</div>
+<div class="tab-panel" id="ac-ios" data-tab-group="pf-ac">
+  {{template "client-apps" ($.ClientsFor "anyconnect" "ios")}}
+  <ol class="steps">
+    <li>Install <b>Cisco Secure Client</b> from the App Store.</li>
+    <li><i>Connections → Add VPN Connection</i>:</li>
+  </ol>
+  {{template "fields" (list
+    (field "Description" (profileNames .Host .LoginNames) "")
+    (field "Server Address" .Host "")
+    (field "Username" .LoginNames "")
+    (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ac-android" data-tab-group="pf-ac">
+  {{template "client-apps" ($.ClientsFor "anyconnect" "android")}}
+  <ol class="steps">
+    <li>Install <b>Cisco Secure Client</b> (or <b>OpenConnect</b>) from Google Play.</li>
+    <li><i>Connections → Add New VPN Connection</i>:</li>
+  </ol>
+  {{template "fields" (list
+    (field "Description" (profileNames .Host .LoginNames) "")
+    (field "Server Address" .Host "")
+    (field "Username" .LoginNames "")
+    (field "Password" "!the VPN password from this page" ""))}}
+</div>
+{{end}}
+
+{{define "instructions-openvpn"}}
+<p class="muted">OpenVPN Connect or OpenVPN 2.6. Each profile contains your personal key.</p>
+{{$saved := false}}{{range .Logins}}{{if index .Downloads "ovpn"}}{{$saved = true}}{{end}}{{end}}
+{{if $saved}}
+<p><b>Ready to connect</b> — login and password saved in the profile, one per network:</p>
+{{range .Logins}}{{if index .Downloads "ovpn"}}
+<div class="row mt-8"><a class="btn primary" href="{{index .Downloads "ovpn"}}">{{profileName $.Host .Login}}</a></div>
+{{end}}{{end}}
+<p class="faint mt-8">These files contain your VPN password: keep them private. They stop working when the password is reissued.</p>
+<p class="mt-16"><a class="btn" href="{{.OVPNDownload}}">Download {{.Host}}.ovpn</a> <span class="faint">without saved credentials — the client asks for them</span></p>
+{{else}}
+<p><a class="btn primary" href="{{.OVPNDownload}}">Download {{.Host}}.ovpn</a></p>
+{{end}}
+{{template "platform-tabs" (dict "Group" "pf-ovpn" "Prefix" "ovpn-")}}
+<div class="tab-panel" id="ovpn-windows" data-tab-group="pf-ovpn">
+  {{template "client-apps" ($.ClientsFor "openvpn" "windows")}}
+  <ol class="steps">
+    <li>Install <a href="https://openvpn.net/client/" rel="noopener">OpenVPN Connect</a>.</li>
+    <li>Import the downloaded <code>.ovpn</code> file (<i>Upload file</i>) and connect. Without saved credentials, enter:</li>
+  </ol>
+  {{template "fields" (list (field "Username" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ovpn-macos" data-tab-group="pf-ovpn">
+  {{template "client-apps" ($.ClientsFor "openvpn" "macos")}}
+  <ol class="steps">
+    <li>Install <a href="https://openvpn.net/client/" rel="noopener">OpenVPN Connect</a> (or Tunnelblick).</li>
+    <li>Open the downloaded <code>.ovpn</code> file and import it, then connect:</li>
+  </ol>
+  {{template "fields" (list (field "Username" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ovpn-linux" data-tab-group="pf-ovpn">
+  {{template "client-apps" ($.ClientsFor "openvpn" "linux")}}
+  <p>OpenVPN 2.6 or newer is required (tls-crypt-v2):</p>
+  <pre class="cmd">sudo openvpn --config {{.Host}}.ovpn</pre>
+  <p class="faint">Or import into NetworkManager: <code>nmcli connection import type openvpn file {{.Host}}.ovpn</code>, then:</p>
+  {{template "fields" (list (field "User name" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ovpn-ios" data-tab-group="pf-ovpn">
+  {{template "client-apps" ($.ClientsFor "openvpn" "ios")}}
+  <ol class="steps">
+    <li>Install <b>OpenVPN Connect</b> from the App Store.</li>
+    <li>Open the downloaded <code>.ovpn</code> file and choose <i>Open in OpenVPN</i>, then:</li>
+  </ol>
+  {{template "fields" (list (field "Username" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+</div>
+<div class="tab-panel" id="ovpn-android" data-tab-group="pf-ovpn">
+  {{template "client-apps" ($.ClientsFor "openvpn" "android")}}
+  <ol class="steps">
+    <li>Install <b>OpenVPN Connect</b> from Google Play.</li>
+    <li>Import the downloaded <code>.ovpn</code> file, then:</li>
+  </ol>
+  {{template "fields" (list (field "Username" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+</div>
+{{end}}
+
+{{define "ikev2-downloads"}}
+{{$kind := .Kind}}
+{{range .Logins}}{{if index .Downloads $kind}}
+<div class="row mt-8"><a class="btn {{if eq $kind "swanctl"}}{{else}}primary{{end}}" href="{{index .Downloads $kind}}">{{$.Label}} · {{.Login}}</a></div>
+{{end}}{{end}}
+{{end}}
+
+{{define "instructions-ikev2"}}
+<p class="muted">Built-in IKEv2 clients (EAP-MSCHAPv2). A ready profile is the easiest way; the tables show what to enter for a manual setup. Always keep the server certificate check on.</p>
+{{template "platform-tabs" (dict "Group" "pf-ike" "Prefix" "ike-")}}
+<div class="tab-panel" id="ike-windows" data-tab-group="pf-ike">
+  {{template "client-apps" ($.ClientsFor "ikev2" "windows")}}
+  <h3>Recommended: setup script</h3>
+  {{template "ikev2-downloads" (dict "Logins" .Logins "Kind" "ps1" "Label" "Windows setup")}}
+  <ol class="steps mt-8">
+    <li>Double-click the downloaded <code>.cmd</code> file. If Windows warns about it, choose <i>More info → Run anyway</i>.</li>
+    <li>Open <i>Settings → Network &amp; Internet → VPN</i>, connect and sign in:</li>
+  </ol>
+  {{template "fields" (list (field "User name" .LoginNames "") (field "Password" "!the VPN password from this page" ""))}}
+  <p class="faint">When the portal says your routes changed, run the script again.</p>
+  <details class="mt-16"><summary>Manual setup (all traffic through the VPN)</summary>
+    <p class="mt-8"><i>Settings → Network &amp; Internet → VPN → Add VPN</i>:</p>
+    {{template "fields" (list
+      (field "VPN provider" "!Windows (built-in)" "")
+      (field "Connection name" (profileNames .Host .LoginNames) "")
+      (field "Server name or address" .Host "")
+      (field "VPN type" "!IKEv2" "")
+      (field "Type of sign-in info" "!User name and password" "")
+      (field "User name" .LoginNames "")
+      (field "Password" "!the VPN password from this page" ""))}}
+    <p class="mt-16">Then open PowerShell and run, for each connection you created (Windows' default encryption is refused by the server):</p>
+    {{range $i, $n := profileNames .Host .LoginNames}}
+    <div class="cmd-row mt-8"><pre class="cmd" id="ike-ps-{{$i}}">{{ipsecCommand $n}}</pre><button class="btn small" type="button" data-copy="ike-ps-{{$i}}">Copy</button></div>
+    {{end}}
+  </details>
+</div>
+<div class="tab-panel" id="ike-macos" data-tab-group="pf-ike">
+  {{template "client-apps" ($.ClientsFor "ikev2" "macos")}}
+  <h3>Recommended: profile</h3>
+  {{template "ikev2-downloads" (dict "Logins" .Logins "Kind" "mobileconfig" "Label" "macOS profile")}}
+  <ol class="steps mt-8">
+    <li>Open it, then install it in <i>System Settings → Privacy &amp; Security → Profiles</i>.</li>
+    <li>Connect in <i>System Settings → VPN</i>; enter your VPN password when asked.</li>
+  </ol>
+  <details class="mt-16"><summary>Manual setup</summary>
+    <p class="mt-8"><i>System Settings → VPN → Add VPN Configuration → IKEv2</i>:</p>
+    {{template "fields" (list
+      (field "Display name" (profileNames .Host .LoginNames) "")
+      (field "Server address" .Host "")
+      (field "Remote ID" .IKEID "")
+      (field "Local ID" .LoginNames "the same as the user name")
+      (field "User authentication" "!Username" "")
+      (field "Username" .LoginNames "")
+      (field "Password" "!the VPN password from this page" ""))}}
+  </details>
+</div>
+<div class="tab-panel" id="ike-linux" data-tab-group="pf-ike">
+  {{template "client-apps" ($.ClientsFor "ikev2" "linux")}}
+  <p><b>NetworkManager</b> (package <code>network-manager-strongswan</code>): <i>Settings → Network → VPN → + → IPsec/IKEv2 (strongswan)</i></p>
+  {{template "fields" (list
+    (field "Name" (profileNames .Host .LoginNames) "")
+    (field "Server › Address" .Host "")
+    (field "Server › Certificate" "!leave empty" "the system CAs verify the server")
+    (field "Server › Identity" .IKEID "")
+    (field "Client › Authentication" "!EAP (Username/Password)" "")
+    (field "Client › Username" .LoginNames "")
+    (field "Client › Password" "!the VPN password from this page" "")
+    (field "Options › Request an inner IP address" "!on" ""))}}
+  <p class="mt-16">Or with swanctl:</p>
+  {{template "ikev2-downloads" (dict "Logins" .Logins "Kind" "swanctl" "Label" "swanctl.conf")}}
+</div>
+<div class="tab-panel" id="ike-ios" data-tab-group="pf-ike">
+  {{template "client-apps" ($.ClientsFor "ikev2" "ios")}}
+  <h3>Recommended: profile</h3>
+  <p class="muted">Open this page on the iPhone/iPad and download:</p>
+  {{template "ikev2-downloads" (dict "Logins" .Logins "Kind" "mobileconfig" "Label" "iOS profile")}}
+  <ol class="steps mt-8">
+    <li><i>Settings → Profile Downloaded → Install</i>.</li>
+    <li>Turn on the VPN in <i>Settings → VPN</i>; enter your VPN password when asked.</li>
+  </ol>
+  <details class="mt-16"><summary>Manual setup</summary>
+    <p class="mt-8"><i>Settings → General → VPN &amp; Device Management → VPN → Add VPN Configuration</i>:</p>
+    {{template "fields" (list
+      (field "Type" "!IKEv2" "")
+      (field "Description" (profileNames .Host .LoginNames) "")
+      (field "Server" .Host "")
+      (field "Remote ID" .IKEID "")
+      (field "Local ID" .LoginNames "the same as the user name")
+      (field "User Authentication" "!Username" "")
+      (field "Username" .LoginNames "")
+      (field "Password" "!the VPN password from this page" ""))}}
+  </details>
+</div>
+<div class="tab-panel" id="ike-android" data-tab-group="pf-ike">
+  {{template "client-apps" ($.ClientsFor "ikev2" "android")}}
+  <h3>Recommended: strongSwan app</h3>
+  <p class="muted">Install the <b>strongSwan VPN Client</b> from Google Play, then download and open the profile:</p>
+  {{template "ikev2-downloads" (dict "Logins" .Logins "Kind" "sswan" "Label" "strongSwan profile")}}
+  <details class="mt-16"><summary>Manual setup in the strongSwan app</summary>
+    <p class="mt-8"><i>Add VPN profile</i>:</p>
+    {{template "fields" (list
+      (field "Server" .Host "")
+      (field "VPN Type" "!IKEv2 EAP (Username/Password)" "")
+      (field "Username" .LoginNames "")
+      (field "Password" "!the VPN password from this page" "")
+      (field "CA certificate" "!Select automatically" "")
+      (field "Profile name" (profileNames .Host .LoginNames) "")
+      (field "Advanced › Server identity" .IKEID ""))}}
+  </details>
+  <details class="mt-8"><summary>Manual setup in Android settings (Android 11+)</summary>
+    <p class="mt-8"><i>Settings → Network &amp; internet → VPN → +</i>:</p>
+    {{template "fields" (list
+      (field "Name" (profileNames .Host .LoginNames) "")
+      (field "Type" "!IKEv2/IPSec MSCHAPv2" "")
+      (field "Server address" .Host "")
+      (field "IPSec identifier" .LoginNames "the same as the user name")
+      (field "IPSec CA certificate" "!Use system certificates" "")
+      (field "IPSec server identifier" .IKEID "")
+      (field "Username" .LoginNames "")
+      (field "Password" "!the VPN password from this page" ""))}}
+  </details>
+</div>
+{{end}}
+
+{{/* Client applications from CLIENTS_DIR/info.txt for one protocol and OS. */}}
+{{define "client-apps"}}{{if .}}
+<div class="client-list">
+  {{range .}}
+  <div class="client-row">
+    <div class="client-name">{{.Description}}{{if .File}}<div class="faint mono">{{.Name}} · {{bytes .Size}}</div>{{end}}</div>
+    {{if .File}}<a class="btn small primary" href="/clients/{{.File}}" download>Download</a>
+    {{else}}<a class="btn small" href="{{.Link}}" target="_blank" rel="noopener noreferrer">{{with .Store}}{{.}}{{else}}Open link{{end}} ↗</a>{{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}{{end}}

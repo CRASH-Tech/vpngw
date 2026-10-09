@@ -1,0 +1,40 @@
+{{define "content"}}{{$d := .Data}}
+<div class="row between">
+  <h1>Settings</h1>
+  <div class="tabs" data-tabs="settings">
+    {{range $d.Groups}}<button type="button" data-tab="set-{{lower .Name}}">{{.Name}}</button>{{end}}
+  </div>
+</div>
+<p class="muted">Settings given as environment variables are fixed (grey); the rest can be changed here, “reset” returns to the default.</p>
+<form method="post" action="/admin/settings">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+{{range $d.Groups}}
+<section class="card glass section tab-panel" id="set-{{lower .Name}}" data-tab-group="settings">
+  {{range .Settings}}
+  <div class="setting{{if .HasEnv}} locked{{end}}">
+    <div>
+      <div class="key">{{.Def.Key}}</div>
+      {{if .Def.Help}}<div class="help">{{.Def.Help}}</div>{{end}}
+    </div>
+    <div>
+      {{if .HasEnv}}
+        <input value="{{if .IsSecret}}••••••{{else}}{{.Value}}{{end}}" disabled title="Set in the environment (docker-compose); change it there">
+      {{else if .IsBool}}
+        <select name="v_{{.Def.Key}}"><option value="true" {{if eq .Value "true"}}selected{{end}}>true</option><option value="false" {{if eq .Value "false"}}selected{{end}}>false</option></select>
+      {{else if .IsSecret}}
+        <input type="password" name="v_{{.Def.Key}}" placeholder="{{if eq .Source "admin"}}•••••• (unchanged){{else}}not set{{end}}" autocomplete="new-password">
+      {{else}}
+        <input name="v_{{.Def.Key}}" value="{{.Value}}" placeholder="{{.Def.Default}}">
+      {{end}}
+      <div class="row src">
+        <span>{{if eq .Source "admin"}}set here{{else if eq .Source "env"}}environment, fixed{{else}}default{{end}}{{if and .Def.Default (ne (print .Source) "default")}} · default <span class="mono">{{.Def.Default}}</span>{{end}}{{if .Def.Restart}} · needs restart{{end}}</span>
+        {{if eq .Source "admin"}}<label class="check"><input type="checkbox" name="reset_{{.Def.Key}}" value="1"> reset</label>{{end}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+</section>
+{{end}}
+<div class="row section"><button class="btn primary big">Save settings</button></div>
+</form>
+{{end}}

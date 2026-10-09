@@ -1,0 +1,19 @@
+# Production example. Copy, edit the environment and run: docker compose up -d
+services:
+  vpngw:
+    image: vpngw:latest
+    build: .
+    network_mode: host
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    volumes: [./data:/data]
+    restart: unless-stopped
+    environment:
+      VPN_HOSTNAME: vpn.example.com
+      PORTAL_HOSTNAME: portal.example.com
+      OIDC_ISSUER: https://idp.example.com/application/o/vpn/
+      OIDC_CLIENT_ID: vpngw
+      OIDC_CLIENT_SECRET: change-me
+      ADMIN_GROUP: vpn-admins
+      EMERGENCY_USER: superadmin
+      EMERGENCY_PASS: change-me-too

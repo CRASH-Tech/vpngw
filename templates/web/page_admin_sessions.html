@@ -1,0 +1,33 @@
+{{define "content"}}{{$d := .Data}}
+<h1>Active sessions <span class="pill" id="session-count">{{$d.Totals.Count}}</span></h1>
+<section class="card glass section">
+  <form class="filters" method="get" action="/admin">
+    <div><label for="f-user">User</label><input id="f-user" name="user" value="{{$d.User}}" placeholder="name, e-mail or login" data-sse-filter></div>
+    <div><label for="f-proto">Protocol</label>
+      <select id="f-proto" name="protocol" data-sse-filter>
+        <option value="">All</option>
+        {{range $d.Protocols}}<option value="{{.}}" {{if eq . $d.Protocol}}selected{{end}}>{{proto .}}</option>{{end}}
+      </select></div>
+  </form>
+  <div class="table-wrap mt-16">
+  <table class="sessions" data-sortable data-sort-state="4:desc">
+    <thead><tr>
+      <th class="sortable" data-key="s">User</th>
+      <th class="sortable" data-key="s">Protocol</th>
+      <th class="sortable" data-key="s">Client IP</th>
+      <th class="sortable" data-key="s">VPN IP</th>
+      <th class="sortable" data-key="n">Connected</th>
+      <th class="sortable num" data-key="n">Received</th>
+      <th class="sortable num" data-key="n">Sent</th>
+      <th class="sortable" data-key="s">Profile</th>
+      <th></th>
+    </tr></thead>
+    <tbody data-sse="/admin/sessions/stream">
+      {{template "session-rows" (dict "Sessions" $d.Sessions "CSRF" $.CSRF)}}
+    </tbody>
+    <tfoot>{{template "session-foot" $d.Totals}}</tfoot>
+  </table>
+  </div>
+  <p class="faint mt-16">Received: from the client · Sent: to the client.</p>
+</section>
+{{end}}

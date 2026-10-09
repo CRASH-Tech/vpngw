@@ -1,0 +1,77 @@
+{{define "content"}}{{$d := .Data}}{{$u := $d.User}}
+<div class="row between">
+  <div><h1>{{$u.Username}}</h1><p class="muted">{{$u.Name}} {{if $u.Email}}· {{$u.Email}}{{end}}</p></div>
+  <div class="row">
+    {{if eq $u.Status "active"}}<span class="pill ok">password active</span>{{else if eq $u.Status "revoked"}}<span class="pill bad">revoked</span>{{else}}<span class="pill">no password</span>{{end}}
+    {{if $u.IsAdmin}}<span class="pill">admin</span>{{end}}
+    {{if eq $u.Status "active"}}<form method="post" action="/admin/users/{{$u.ID}}/revoke" class="inline-form" data-confirm="Disconnect {{$u.Username}} and revoke the VPN password?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn danger">Disconnect user</button></form>{{end}}
+  </div>
+</div>
+<div class="grid grid-2 section align-start">
+  <section class="card glass">
+    <h2>Identity</h2>
+    <dl class="kv">
+      <dt>Subject</dt><dd class="mono">{{$u.Sub}}</dd>
+      <dt>VPN groups</dt><dd>{{range $d.VPNGroups}}<span class="tag">{{.}}</span>{{else}}—{{end}}</dd>
+      <dt>Portal sign-in</dt><dd>{{ts $u.LastLoginAt}}</dd>
+      <dt>Password issued</dt><dd>{{ts $u.PwIssuedAt}}</dd>
+      <dt>Session ends</dt><dd>{{if isZero $u.SessionExpiresAt}}<span class="faint">unknown</span>{{else}}in {{until $u.SessionExpiresAt}} <span class="faint">{{ts $u.SessionExpiresAt}}</span>{{end}}</dd>
+      <dt>IdP check</dt><dd>{{ago $u.LastCheckAt}}{{if ne $u.LastCheckAt.Unix $u.LastCheckOKAt.Unix}} <span class="faint">· last success {{ago $u.LastCheckOKAt}}</span>{{end}}</dd>
+      {{if $u.LastCheckError}}<dt>Last error</dt><dd><span class="pill warn">{{$u.LastCheckError}}</span></dd>{{end}}
+      {{if not (isZero $u.IdPFailSince)}}<dt>IdP failing since</dt><dd>{{ts $u.IdPFailSince}}</dd>{{end}}
+    </dl>
+  </section>
+  <section class="card glass">
+    <h2>Networks and routing</h2>
+    {{range $d.Logins}}
+      <div class="mt-16"><b class="mono">{{.Login}}</b>{{if .Profile}} <span class="tag">{{.Profile.ID}}</span>{{end}}
+      {{if .Profile}}
+        <dl class="kv mt-8">
+          <dt>Allowed</dt><dd>{{range .Profile.Networks}}<span class="tag">{{.}}</span>{{else}}<span class="faint">—</span>{{end}}{{if .Profile.FullTunnel}} <span class="pill">all traffic</span>{{end}}</dd>
+          {{if .Profile.Domains}}<dt>Domains</dt><dd>{{range .Profile.DomainLabels}}<span class="tag">{{.}}</span>{{end}} {{with .Profile.ExceptLabels}}<span class="faint">except</span> {{range .}}<span class="tag">{{.}}</span> {{end}}{{end}}
+            <div class="faint">via {{.Default}}; resolved with {{range .Profile.Upstream}}{{.}} {{else}}this gateway's resolvers{{end}} · pool {{.Profile.Pool}}</div></dd>{{end}}
+          <dt>Tunnels</dt><dd>{{range .Via}}<div class="mono">{{.}}</div>{{else}}<span class="faint">none of its networks is behind a tunnel peer</span>{{end}}</dd>
+          <dt>Other traffic</dt><dd>{{.Default}}</dd>
+          {{if and .Profile.DNS (not .Profile.Domains)}}<dt>DNS</dt><dd>{{range .Profile.DNS}}<span class="tag">{{.}}</span>{{end}} {{.Profile.Domain}}</dd>{{end}}
+          {{if .Widened}}<dt>AnyConnect</dt><dd><span class="pill warn">{{.Widened}} widened routes (limit exceeded); the firewall enforces the exact networks</span></dd>{{end}}
+          {{range .Profile.Warnings}}<dt>Warning</dt><dd><span class="pill warn">{{.}}</span></dd>{{end}}
+        </dl>
+      {{else}} <span class="pill bad">{{.Error}}</span>{{end}}
+      </div>
+    {{else}}<p class="muted">No routes in the IdP claim.</p>{{end}}
+    {{if $u.VPNClaim}}<details class="mt-16"><summary>Raw routes claim</summary><pre class="cmd">{{claim $u.VPNClaim}}</pre></details>{{end}}
+  </section>
+</div>
+
+<div class="grid grid-2 section">
+<section class="card glass">
+  <div class="row between"><h2>Traffic, 48 hours</h2>
+    <div class="legend"><span><i class="rx-i"></i>received {{bytes (uint (index $d.HourChart.Total 0))}}</span><span><i class="tx-i"></i>sent {{bytes (uint (index $d.HourChart.Total 1))}}</span></div></div>
+  {{template "chart" $d.HourChart}}
+</section>
+<section class="card glass">
+  <div class="row between"><h2>Traffic, 30 days</h2>
+    <div class="legend"><span><i class="rx-i"></i>received {{bytes (uint (index $d.DayChart.Total 0))}}</span><span><i class="tx-i"></i>sent {{bytes (uint (index $d.DayChart.Total 1))}}</span></div></div>
+  {{template "chart" $d.DayChart}}
+</section>
+</div>
+
+<section class="card glass section">
+  <h2>Sessions</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Protocol</th><th>Login</th><th>Client IP</th><th>VPN IP</th><th>Start</th><th>End</th><th class="num">Received</th><th class="num">Sent</th><th>Reason</th></tr></thead>
+    <tbody>
+    {{range $d.History}}<tr><td>{{proto .Protocol}}</td><td class="mono nowrap">{{.Login}}</td><td class="mono">{{.ClientIP}}</td><td class="mono">{{.VPNIP}}</td>
+      <td>{{ts .StartedAt}}</td><td>{{if isZero .EndedAt}}<span class="pill ok">active</span>{{else}}{{ts .EndedAt}}{{end}}</td>
+      <td class="num">{{bytes (uint .BytesIn)}}</td><td class="num">{{bytes (uint .BytesOut)}}</td><td class="faint">{{.EndReason}}</td></tr>
+    {{else}}<tr><td colspan="9" class="muted">No sessions.</td></tr>{{end}}
+    </tbody></table></div>
+</section>
+
+<section class="card glass section">
+  <div class="row between"><h2>Journal</h2><a class="btn small" href="/admin/audit?user={{$u.Username}}">Full journal</a></div>
+  <div class="table-wrap"><table><tbody>
+  {{range $d.Journal}}<tr><td class="nowrap">{{ts .TS}}</td><td><span class="pill {{if eq .Level "warn"}}warn{{else if eq .Level "error"}}bad{{end}}">{{.Event}}</span></td><td>{{.Message}}</td></tr>{{end}}
+  </tbody></table></div>
+</section>
+{{end}}

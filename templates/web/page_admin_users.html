@@ -1,0 +1,37 @@
+{{define "content"}}{{$d := .Data}}
+<div class="row between">
+  <h1>Users</h1>
+  <form method="post" action="/admin/users/0/revalidate" class="inline-form"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn">Check all sessions with IdP now</button></form>
+</div>
+<section class="card glass section">
+  <form class="filters" method="get" action="/admin/users">
+    <div><label for="q">Search</label><input id="q" name="q" value="{{$d.Q}}" placeholder="name, e-mail, group"></div>
+    <div><button class="btn">Filter</button></div>
+  </form>
+  <div class="table-wrap mt-16">
+  <table data-sortable>
+    <thead><tr>
+      <th class="sortable" data-key="s">User</th><th class="sortable" data-key="s">Status</th><th>VPN groups</th>
+      <th class="sortable" data-key="n">Last IdP check</th><th class="sortable num" data-key="n">Sessions</th>
+      <th class="sortable num" data-key="n">24 h</th><th class="sortable num" data-key="n">30 days</th><th></th>
+    </tr></thead>
+    <tbody>
+    {{range $d.Users}}
+      <tr>
+        <td><a href="/admin/users/{{.ID}}">{{.Username}}</a>{{if .IsAdmin}} <span class="pill">admin</span>{{end}}<div class="faint">{{.Email}}</div></td>
+        <td>{{if eq .Status "active"}}<span class="pill ok">active</span>{{else if eq .Status "revoked"}}<span class="pill bad">revoked</span>{{else}}<span class="pill">no password</span>{{end}}
+          {{if not (isZero .IdPFailSince)}}<div><span class="pill warn">IdP failing {{ago .IdPFailSince}}</span></div>{{end}}</td>
+        <td>{{range .VPNGroups}}<span class="tag">{{.}}</span>{{else}}<span class="faint">none</span>{{end}}</td>
+        <td data-sort="{{.LastCheckOKAt.Unix}}">{{ago .LastCheckOKAt}}{{if .LastCheckError}}<div class="faint">{{.LastCheckError}}</div>{{end}}</td>
+        <td class="num">{{.Sessions}}</td>
+        <td class="num" data-sort="{{index .Traffic1 0}}">{{bytes (uint (index .Traffic1 0))}} / {{bytes (uint (index .Traffic1 1))}}</td>
+        <td class="num" data-sort="{{index .Traffic3 0}}">{{bytes (uint (index .Traffic3 0))}} / {{bytes (uint (index .Traffic3 1))}}</td>
+        <td>{{if eq .Status "active"}}<form method="post" action="/admin/users/{{.ID}}/revoke" class="inline-form" data-confirm="Disconnect {{.Username}} and revoke the VPN password?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn small danger">Disconnect user</button></form>{{end}}</td>
+      </tr>
+    {{else}}<tr><td colspan="8" class="muted">No users yet.</td></tr>{{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="faint mt-16">Traffic: received / sent.</p>
+</section>
+{{end}}
