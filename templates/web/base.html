@@ -17,18 +17,18 @@
 {{if .Session}}
 <header class="topbar glass">
   <a class="brand" href="/"><span class="logo"></span><span class="brand-text"><span>{{if .VPN}}VPN Gateway{{else}}Tunnel Gateway{{end}}</span>{{if .Node}}<span class="brand-node">{{.Node}}</span>{{end}}</span></a>
+  {{if .Session.IsAdmin}}{{/* users have only their portal: no navigation */}}
   <nav class="nav">
-    {{if .VPN}}<a href="/" class="{{if eq .Nav "portal"}}active{{end}}">My VPN</a>{{end}}
-    {{if .Session.IsAdmin}}
-    {{if .VPN}}<a href="/admin" class="{{if eq .Nav "sessions"}}active{{end}}">Sessions</a>
+    {{if .VPN}}<a href="/" class="{{if eq .Nav "portal"}}active{{end}}">My VPN</a>
+    <a href="/admin" class="{{if eq .Nav "sessions"}}active{{end}}">Sessions</a>
     <a href="/admin/users" class="{{if eq .Nav "users"}}active{{end}}">Users</a>{{end}}
     <a href="/admin/tunnels" class="{{if eq .Nav "tunnels"}}active{{end}}">Tunnels</a>
     <a href="/admin/audit" class="{{if eq .Nav "audit"}}active{{end}}">Journal</a>
     <a href="/admin/status" class="{{if eq .Nav "status"}}active{{end}}">Status</a>
     <a href="/admin/settings" class="{{if eq .Nav "settings"}}active{{end}}">Settings</a>
     {{if .VPN}}<a href="/admin/configs" class="{{if eq .Nav "configs"}}active{{end}}">Configs</a>{{end}}
-    {{end}}
   </nav>
+  {{end}}
   <span class="spacer"></span>
   <span class="faint">{{.Session.Username}}{{if .Session.Emergency}} · emergency{{end}}</span>
   <form method="post" action="/logout" class="inline-form"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn small">Sign out</button></form>
