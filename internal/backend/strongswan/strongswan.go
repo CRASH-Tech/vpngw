@@ -292,7 +292,14 @@ func (b *Backend) loadConn(name string, p *policy.Profile) error {
 	if p != nil {
 		group = p.ID
 		ts = nil
-		for _, a := range p.Allow {
+		// Clients reject IKE messages with too many traffic selectors
+		// (strongSwan: about 10 kB, roughly 600); the firewall enforces the
+		// exact networks.
+		allow, widened := policy.Widen(p.Allow, b.Cfg.Int("IKEV2_ROUTE_LIMIT"))
+		if widened {
+			slog.Warn("IKEv2 traffic selector limit exceeded, networks widened", "profile", p.ID, "networks", len(p.Allow), "limit", len(allow))
+		}
+		for _, a := range allow {
 			ts = append(ts, a.String())
 		}
 	}

@@ -24,6 +24,7 @@ import (
 	"vpngw/internal/config"
 	"vpngw/internal/core"
 	"vpngw/internal/pki"
+	"vpngw/internal/policy"
 	"vpngw/internal/supervisor"
 )
 
@@ -440,7 +441,13 @@ func (b *Backend) onConnect(ev *event) {
 	if prof.FullTunnel {
 		lines = append(lines, `push "redirect-gateway def1 bypass-dhcp"`)
 	} else {
-		for _, r := range prof.Routes() {
+		// Clients install routes one by one (20000 take a Linux client
+		// 40 s); the firewall enforces the exact networks.
+		routes, widened := policy.Widen(prof.Routes(), b.Cfg.Int("OPENVPN_ROUTE_LIMIT"))
+		if widened {
+			slog.Warn("OpenVPN route limit exceeded, routes widened", "profile", prof.ID, "routes", len(prof.Routes()), "limit", len(routes))
+		}
+		for _, r := range routes {
 			lines = append(lines, fmt.Sprintf(`push "route %s %s"`, r.Addr(), net.IP(net.CIDRMask(r.Bits(), 32))))
 		}
 	}

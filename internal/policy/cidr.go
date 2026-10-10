@@ -132,30 +132,51 @@ func Covers(outer, inner []netip.Prefix) bool {
 }
 
 // Widen reduces ps to at most limit prefixes by replacing pairs of
-// neighbours with their common supernet, choosing the merge that adds the
-// fewest extra addresses. The result always covers the input.
+// neighbours with their common supernet, preferring the merges that add the
+// fewest extra addresses. The result always covers the input. Each pass
+// merges up to half of the pairs still needed, cheapest first, so large
+// lists (thousands of routes) take milliseconds.
 func Widen(ps []netip.Prefix, limit int) (out []netip.Prefix, widened bool) {
 	out = Aggregate(ps)
 	if limit <= 0 {
 		return out, false
 	}
+	type merge struct {
+		i    int
+		cost uint64
+		sp   netip.Prefix
+	}
 	for len(out) > limit {
-		best, bestCost := -1, uint64(1<<63)
-		var bestP netip.Prefix
-		for i := 0; i+1 < len(out); i++ {
+		n := len(out)
+		ms := make([]merge, 0, n-1)
+		for i := 0; i+1 < n; i++ {
 			sp := supernet(out[i], out[i+1])
-			cost := size(sp) - size(out[i]) - size(out[i+1])
-			if cost < bestCost {
-				best, bestCost, bestP = i, cost, sp
+			ms = append(ms, merge{i, size(sp) - size(out[i]) - size(out[i+1]), sp})
+		}
+		sort.SliceStable(ms, func(a, b int) bool { return ms[a].cost < ms[b].cost })
+		budget := max(1, (n-limit)/2)
+		take := make(map[int]netip.Prefix, budget)
+		used := make([]bool, n)
+		for _, m := range ms {
+			if len(take) == budget {
+				break
 			}
+			if used[m.i] || used[m.i+1] {
+				continue
+			}
+			used[m.i], used[m.i+1] = true, true
+			take[m.i] = m.sp
 		}
-		if best < 0 {
-			break
+		next := make([]netip.Prefix, 0, n-len(take))
+		for i := 0; i < n; i++ {
+			if sp, ok := take[i]; ok {
+				next = append(next, sp)
+				i++
+				continue
+			}
+			next = append(next, out[i])
 		}
-		merged := append([]netip.Prefix{}, out[:best]...)
-		merged = append(merged, bestP)
-		merged = append(merged, out[best+2:]...)
-		out = Aggregate(merged)
+		out = Aggregate(next)
 		widened = true
 	}
 	return out, widened
@@ -174,4 +195,24 @@ func supernet(a, b netip.Prefix) netip.Prefix {
 	}
 	p, _ := addr(x).Prefix(l)
 	return p
+}
+
+// WidenTo widens ps to at most limit prefixes whose text ("10.0.0.0/8",
+// plus 2 bytes of attribute header each) takes at most maxBytes: a RADIUS
+// packet holds 4096 bytes in all. maxBytes <= 0: no byte limit.
+func WidenTo(ps []netip.Prefix, limit, maxBytes int) ([]netip.Prefix, bool) {
+	out, widened := Widen(ps, limit)
+	for maxBytes > 0 && len(out) > 1 && routeBytes(out) > maxBytes {
+		out, _ = Widen(out, len(out)*3/4)
+		widened = true
+	}
+	return out, widened
+}
+
+func routeBytes(ps []netip.Prefix) int {
+	n := 0
+	for _, p := range ps {
+		n += 2 + len(p.String())
+	}
+	return n
 }

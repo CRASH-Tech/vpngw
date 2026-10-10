@@ -285,7 +285,9 @@ func (s *Server) addSessionAttrs(resp *radius.Packet, sess *core.Session, proto 
 			mask := net.CIDRMask(pool.Prefix().Bits(), 32)
 			_ = rfc2865.FramedIPNetmask_Set(resp, net.IP(mask))
 		}
-		routes, widened := policy.Widen(prof.Routes(), s.Core.Cfg.Int("ANYCONNECT_ROUTE_LIMIT"))
+		// Routes travel as Framed-Route attributes of one RADIUS packet
+		// (4096 bytes); keep them within 3000.
+		routes, widened := policy.WidenTo(prof.Routes(), s.Core.Cfg.Int("ANYCONNECT_ROUTE_LIMIT"), 3000)
 		if widened {
 			slog.Warn("AnyConnect route limit exceeded, routes widened", "profile", prof.ID, "routes", len(prof.Routes()), "limit", len(routes))
 		}

@@ -251,8 +251,14 @@ func (a *Admin) user(w http.ResponseWriter, r *http.Request) {
 		lr := loginRouting{LoginOption: o}
 		if o.Profile != nil {
 			lr.Via, lr.Default = a.profileTunnels(o.Profile)
-			if routes, widened := policy.Widen(o.Profile.Routes(), a.Cfg.Int("ANYCONNECT_ROUTE_LIMIT")); widened {
+			if routes, widened := policy.WidenTo(o.Profile.Routes(), a.Cfg.Int("ANYCONNECT_ROUTE_LIMIT"), 3000); widened {
 				lr.Widened = len(routes)
+			}
+			if routes, widened := policy.Widen(o.Profile.Routes(), a.Cfg.Int("OPENVPN_ROUTE_LIMIT")); widened {
+				lr.WidenedOVPN = len(routes)
+			}
+			if ts, widened := policy.Widen(o.Profile.Allow, a.Cfg.Int("IKEV2_ROUTE_LIMIT")); widened {
+				lr.WidenedIKE = len(ts)
 			}
 		}
 		logins = append(logins, lr)
@@ -267,9 +273,11 @@ func (a *Admin) user(w http.ResponseWriter, r *http.Request) {
 // loginRouting is a VPN login with where its traffic goes.
 type loginRouting struct {
 	core.LoginOption
-	Via     []string // allowed networks behind tunnel peers
-	Default string   // where everything else goes
-	Widened int      // AnyConnect routes after widening (0 = not needed)
+	Via         []string // allowed networks behind tunnel peers
+	Default     string   // where everything else goes
+	Widened     int      // AnyConnect routes after widening (0 = not needed)
+	WidenedIKE  int      // IKEv2 traffic selectors after widening
+	WidenedOVPN int      // OpenVPN routes after widening
 }
 
 // --- audit ---

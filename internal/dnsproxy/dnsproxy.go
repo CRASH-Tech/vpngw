@@ -30,7 +30,7 @@ const Port = 15053
 
 // Policy is what the DNS server needs to know about a client.
 type Policy struct {
-	Domains  []string
+	Domains  *policy.DomainSet
 	Upstream []netip.Addr // servers for Domains; empty: Forwarders
 	Gateway  string       // vpnGateway (part of the address key)
 	Mark     uint32       // SO_MARK of upstream queries: the gateway's route
@@ -181,7 +181,7 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 	q := r.Question[0]
-	if q.Qclass == dns.ClassINET && policy.MatchDomain(pol.Domains, q.Name) {
+	if q.Qclass == dns.ClassINET && pol.Domains.Match(q.Name) {
 		switch q.Qtype {
 		case dns.TypeA:
 			s.answerA(w, r, pol, client)

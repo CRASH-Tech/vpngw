@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+
+	"vpngw/internal/policy"
 )
 
 type writer struct {
@@ -36,8 +38,8 @@ func newServer(t *testing.T) (*Server, map[netip.Addr]netip.Addr, *[]query) {
 	grants = nil
 	var queries []query
 	clients := map[netip.Addr]Policy{
-		netip.MustParseAddr("10.250.0.2"): {Domains: []string{"example.com", "!skip.example.com"}, Upstream: []netip.Addr{netip.MustParseAddr("8.8.8.8")}, Gateway: "lat", Mark: 0x76670001},
-		netip.MustParseAddr("10.250.0.3"): {Domains: []string{"example.com"}, Gateway: "kz", Mark: 0x76670002},
+		netip.MustParseAddr("10.250.0.2"): {Domains: policy.NewDomainSet([]string{"example.com", "!skip.example.com"}), Upstream: []netip.Addr{netip.MustParseAddr("8.8.8.8")}, Gateway: "lat", Mark: 0x76670001},
+		netip.MustParseAddr("10.250.0.3"): {Domains: policy.NewDomainSet([]string{"example.com"}), Gateway: "kz", Mark: 0x76670002},
 	}
 	s := &Server{
 		Pool:       netip.MustParsePrefix("198.18.0.0/16"),

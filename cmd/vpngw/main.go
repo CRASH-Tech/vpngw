@@ -17,6 +17,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -33,6 +35,7 @@ import (
 	"vpngw/internal/logx"
 	"vpngw/internal/oidc"
 	"vpngw/internal/pki"
+	"vpngw/internal/policy"
 	"vpngw/internal/portal"
 	"vpngw/internal/radius"
 	"vpngw/internal/secret"
@@ -279,6 +282,26 @@ func run() error {
 
 	c := core.New(cfg, st, master, box, oc, fw)
 	var dp *dnsproxy.Server
+	// Indexed vpnDomains: per profile, and TUNNEL_TRANSIT_DOMAINS until it
+	// changes.
+	var domainSets sync.Map // profile id → *policy.DomainSet
+	var transitSet atomic.Pointer[policy.DomainSet]
+	profileDomains := func(p *policy.Profile) *policy.DomainSet {
+		if v, ok := domainSets.Load(p.ID); ok {
+			return v.(*policy.DomainSet)
+		}
+		set := policy.NewDomainSet(p.Domains)
+		domainSets.Store(p.ID, set)
+		return set
+	}
+	transitDomains := func() *policy.DomainSet {
+		if set := transitSet.Load(); set != nil {
+			return set
+		}
+		set := policy.NewDomainSet(cfg.TransitDomains())
+		transitSet.Store(set)
+		return set
+	}
 	if dnsPort != 0 {
 		system := dnsproxy.SystemResolvers()
 		dp = &dnsproxy.Server{
@@ -289,13 +312,13 @@ func run() error {
 					if p == nil || len(p.Domains) == 0 {
 						return dnsproxy.Policy{}, false
 					}
-					return dnsproxy.Policy{Domains: p.Domains, Upstream: p.Upstream, Gateway: p.Gateway, Mark: fw.GatewayMark(p.Gateway)}, true
+					return dnsproxy.Policy{Domains: profileDomains(p), Upstream: p.Upstream, Gateway: p.Gateway, Mark: fw.GatewayMark(p.Gateway)}, true
 				}
 				// Hosts routed through this node (TUNNEL_TRANSIT_SOURCES).
 				for _, src := range cfg.TransitSources() {
 					if src.Contains(ip) {
 						gw := cfg.TransitDomainsGateway()
-						return dnsproxy.Policy{Domains: cfg.TransitDomains(), Upstream: cfg.Addrs("TUNNEL_TRANSIT_DOMAINS_DNS"), Gateway: gw, Mark: fw.GatewayMark(gw)}, true
+						return dnsproxy.Policy{Domains: transitDomains(), Upstream: cfg.Addrs("TUNNEL_TRANSIT_DOMAINS_DNS"), Gateway: gw, Mark: fw.GatewayMark(gw)}, true
 					}
 				}
 				return dnsproxy.Policy{}, false
@@ -397,6 +420,9 @@ func run() error {
 			switch k {
 			case "LOG_LEVEL":
 				logx.SetLevel(cfg.Str("LOG_LEVEL"))
+			case "TUNNEL_TRANSIT_DOMAINS":
+				transitSet.Store(nil)
+				continue
 			case "TUNNEL_TRANSIT_SOURCES", "TUNNEL_TRANSIT_GATEWAY", "TUNNEL_LOCAL_NETWORKS", "TUNNEL_TRANSIT_DOMAINS_GATEWAY":
 				fw.Reconcile()
 				continue

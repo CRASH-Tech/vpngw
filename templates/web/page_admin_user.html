@@ -34,6 +34,8 @@
           <dt>Other traffic</dt><dd>{{.Default}}</dd>
           {{if and .Profile.DNS (not .Profile.Domains)}}<dt>DNS</dt><dd>{{range .Profile.DNS}}<span class="tag">{{.}}</span>{{end}} {{.Profile.Domain}}</dd>{{end}}
           {{if .Widened}}<dt>AnyConnect</dt><dd><span class="pill warn">{{.Widened}} widened routes (limit exceeded); the firewall enforces the exact networks</span></dd>{{end}}
+          {{if .WidenedOVPN}}<dt>OpenVPN</dt><dd><span class="pill warn">{{.WidenedOVPN}} widened routes (limit exceeded); the firewall enforces the exact networks</span></dd>{{end}}
+          {{if .WidenedIKE}}<dt>IKEv2</dt><dd><span class="pill warn">{{.WidenedIKE}} widened traffic selectors (limit exceeded); the firewall enforces the exact networks</span></dd>{{end}}
           {{range .Profile.Warnings}}<dt>Warning</dt><dd><span class="pill warn">{{.}}</span></dd>{{end}}
         </dl>
       {{else}} <span class="pill bad">{{.Error}}</span>{{end}}

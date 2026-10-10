@@ -3,10 +3,12 @@ package policy
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/netip"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func pfx(ss ...string) []netip.Prefix {
@@ -277,5 +279,28 @@ func TestDomainExclusions(t *testing.T) {
 	// Only exclusions: no domain proxy at all.
 	if p, err := Resolve("vpn-none", claim, nil, ""); err != nil || p.Domains != nil {
 		t.Fatalf("only exclusions: %+v %v", p, err)
+	}
+}
+
+func TestLargeLists(t *testing.T) {
+	var routes []netip.Prefix
+	for i := 0; i < 20000; i++ { // non-adjacent /28s: nothing aggregates
+		routes = append(routes, netip.PrefixFrom(netip.AddrFrom4([4]byte{10, byte(i >> 8), byte(i), 0}), 28))
+	}
+	start := time.Now()
+	out, widened := WidenTo(routes, 200, 3000)
+	if !widened || len(out) > 200 || routeBytes(out) > 3000 || !Covers(out, routes) {
+		t.Fatalf("widened %v: %d prefixes, %d bytes", widened, len(out), routeBytes(out))
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("20000 routes took %v", d)
+	}
+	var ds []string
+	for i := 0; i < 100000; i++ {
+		ds = append(ds, fmt.Sprintf("site%d.example", i))
+	}
+	set := NewDomainSet(append(ds, "!site7.example"))
+	if !set.Match("www.site42.example") || set.Match("site7.example") || set.Match("google.com") || set.Len() != 100001 {
+		t.Fatal("domain set")
 	}
 }

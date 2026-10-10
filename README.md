@@ -174,6 +174,17 @@ named after `VPN_HOSTNAME` (e.g. `vpn.example.com.xml`) listing the VPN
 endpoints; the client stores profiles by file name, so gateways do not
 replace each other's entries.
 
+**Large lists.** Clients get at most `OPENVPN_ROUTE_LIMIT` (1000),
+`ANYCONNECT_ROUTE_LIMIT` (200, and what fits into one RADIUS packet) and
+`IKEV2_ROUTE_LIMIT` (200 traffic selectors) routes; longer lists are merged
+into wider routes (the admin panel's user page says so), while the firewall
+still allows only the exact networks. Tested with 20000 networks and 50000
+`vpnDomains`: every protocol connects in a few seconds. Without the limits
+OpenVPN clients spend long installing routes and IKEv2 clients reject the
+IKE message (strongSwan above about 600 traffic selectors). The IdP sends
+the lists in the token, so very long ones make tokens large; with
+`OIDC_LOGOUT=idp` the token travels in the logout URL.
+
 **Client downloads.** The installers and app store links listed in
 `CLIENTS_DIR/info.txt` are shown in the portal's instructions, in the tab of
 their protocol and operating system:

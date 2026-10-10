@@ -85,7 +85,9 @@ var Defs = []Def{
 	{Key: "CLIENT_TO_CLIENT", Default: "false", Kind: Bool, Group: "Network", Help: "Allow traffic between VPN clients."},
 	{Key: "DOCKER_COMPAT", Default: "true", Kind: Bool, Group: "Network", Help: "Allow forwarding past Docker's DROP policy."},
 	{Key: "SESSION_LIMIT", Default: "3", Kind: Int, Group: "Network", Help: "VPN sessions per user."},
-	{Key: "ANYCONNECT_ROUTE_LIMIT", Default: "200", Kind: Int, Group: "Network", Help: "Max split routes for AnyConnect."},
+	{Key: "ANYCONNECT_ROUTE_LIMIT", Default: "200", Kind: Int, Group: "Network", Help: "Max split routes for AnyConnect; more are merged into wider ones (the firewall still allows only the exact networks)."},
+	{Key: "OPENVPN_ROUTE_LIMIT", Default: "1000", Kind: Int, Group: "Network", Help: "Max routes pushed to OpenVPN clients (thousands make clients slow to connect); more are merged like ANYCONNECT_ROUTE_LIMIT."},
+	{Key: "IKEV2_ROUTE_LIMIT", Default: "200", Kind: Int, Group: "Network", Help: "Max traffic selectors for IKEv2 (clients reject large IKE messages); more are merged like ANYCONNECT_ROUTE_LIMIT. Applies to new connections after a restart of IKEv2."},
 
 	{Key: "ENABLE_ANYCONNECT", Default: "true", Kind: Bool, Group: "Protocols", Restart: true},
 	{Key: "ENABLE_OPENVPN", Default: "true", Kind: Bool, Group: "Protocols", Restart: true},

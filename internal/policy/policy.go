@@ -333,22 +333,60 @@ func NormalizeDomain(s string) (string, error) {
 	return n, nil
 }
 
-// MatchDomain reports whether name is one of domains or a subdomain. The
-// most specific entry decides, so "!google.com" excludes it from "*.com"
-// and "maps.google.com" includes that one again; on a tie "!" wins.
+// MatchDomain reports whether name is one of domains or a subdomain (see
+// DomainSet). For repeated lookups build a DomainSet once.
 func MatchDomain(domains []string, name string) bool {
-	name = strings.TrimSuffix(strings.ToLower(name), ".")
-	best, match := -1, false
-	for _, d := range domains {
-		d, exc := strings.CutPrefix(d, "!")
-		if name != d && !strings.HasSuffix(name, "."+d) {
-			continue
-		}
-		if len(d) > best || len(d) == best && exc {
-			best, match = len(d), !exc
+	return NewDomainSet(domains).Match(name)
+}
+
+// DomainSet answers MatchDomain for a fixed list in time proportional to
+// the labels of the name, whatever the size of the list.
+type DomainSet struct {
+	inc, exc map[string]bool
+}
+
+// NewDomainSet indexes normalized domains ("name" or "!name").
+func NewDomainSet(domains []string) *DomainSet {
+	d := &DomainSet{inc: make(map[string]bool, len(domains)), exc: map[string]bool{}}
+	for _, x := range domains {
+		if n, ok := strings.CutPrefix(x, "!"); ok {
+			d.exc[n] = true
+		} else {
+			d.inc[x] = true
 		}
 	}
-	return match
+	return d
+}
+
+// Len is the number of entries.
+func (d *DomainSet) Len() int {
+	if d == nil {
+		return 0
+	}
+	return len(d.inc) + len(d.exc)
+}
+
+// Match reports whether name or one of its parent domains is listed. The
+// most specific entry decides, so "!google.com" excludes it from "*.com"
+// and "maps.google.com" includes that one again; on a tie "!" wins.
+func (d *DomainSet) Match(name string) bool {
+	if d == nil || len(d.inc) == 0 {
+		return false
+	}
+	name = strings.TrimSuffix(strings.ToLower(name), ".")
+	for {
+		if d.exc[name] {
+			return false
+		}
+		if d.inc[name] {
+			return true
+		}
+		i := strings.IndexByte(name, '.')
+		if i < 0 {
+			return false
+		}
+		name = name[i+1:]
+	}
 }
 
 func uniqDomains(in []string) []string {
