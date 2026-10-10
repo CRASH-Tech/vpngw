@@ -17,7 +17,7 @@ jobs:
         with: { go-version-file: go.mod }
       - name: Lint
         run: |
-          test -z "$(gofmt -l cmd internal templates | grep -v ^internal/goproxy/)"
+          test -z "$(gofmt -l cmd internal templates)"
           go vet ./...
       - name: Unit tests
         run: go test -race ./...

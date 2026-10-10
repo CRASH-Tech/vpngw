@@ -53,6 +53,12 @@ def sh(cmd, check=True, timeout=60):
     return p
 
 
+def fakedc_nat():
+    """NAT rules of the fake site with counters: they change when a client's
+    connection leaves through it."""
+    return sh("docker exec vpngw-fakedc nft list chain inet vpngw postrouting", check=False).stdout
+
+
 def step(name, ok, detail=""):
     results.append((name, ok, detail))
     print(("PASS " if ok else "FAIL ") + name + (" — " + detail if detail else ""), flush=True)
@@ -276,15 +282,15 @@ def main():
     c.stop()
     for proto in ("openvpn", "anyconnect", "ikev2"):
         c = Client("gw-" + proto)
-        before = sh("docker exec vpngw-fakedc iptables -t nat -vnxL POSTROUTING", check=False).stdout
+        before = fakedc_nat()
         ip = connect(c, proto, ADMIN, APASS)
         out = c.ex("curl", "-s", "-m", "20", "-o", "/dev/null", "-w", "%{http_code}", "https://speed.cloudflare.com/__down?bytes=100000").stdout
-        after = sh("docker exec vpngw-fakedc iptables -t nat -vnxL POSTROUTING", check=False).stdout
+        after = fakedc_nat()
         step("tunnels (%s): vpnGateway=<peer> sends the internet through that site" % proto, ip is not None and out == "200" and before != after, "%s %s" % (ip, out))
         # No loops: the gateway's own traffic and the tunnel's outer packets
         # (goproxy socket mark 0x676f) keep the host's routes while a client
         # sends everything to the exit; the client still reaches the gateway.
-        fake = sh("docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' vpngw-fakedc", check=False).stdout.strip()
+        fake = sh("./test/e2e/fakedc.sh ip", check=False).stdout.strip()
         own = sh("docker exec vpngw ip route get 1.1.1.1", check=False).stdout + sh("docker exec vpngw ip route get %s" % fake, check=False).stdout + \
             sh("docker exec vpngw ip route get %s mark 0x676f" % fake, check=False).stdout
         rules = sh("docker exec vpngw ip rule", check=False).stdout
@@ -301,7 +307,7 @@ def main():
     a.post("/admin/settings", {"v_EMERGENCY_GATEWAY": "fakedc", "v_TUNNEL_LOCAL_NETWORKS": "1.1.1.1/32"})
     c = Client("local-net")
     ip = connect(c, "openvpn", ADMIN, APASS)
-    nat = lambda: sh("docker exec vpngw-fakedc iptables -t nat -vnxL POSTROUTING", check=False).stdout
+    nat = fakedc_nat
     before = nat()
     local = c.ex("curl", "-s", "-m", "20", "-o", "/dev/null", "-w", "%{http_code}", "https://1.1.1.1/cdn-cgi/trace").stdout
     mid = nat()

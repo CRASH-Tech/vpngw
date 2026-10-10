@@ -12,7 +12,7 @@
     <div><label for="a-q">Text</label><input id="a-q" name="q" value="{{$d.F.Get "q"}}"></div>
     <div><button class="btn">Filter</button></div>
   </form>
-  <div class="table-wrap mt-16"><table>
+  <div class="table-wrap mt-16"><table class="stack">
     <thead><tr><th>Time (UTC)</th><th>Event</th><th>User</th><th>Protocol</th><th>IP</th><th>Message</th><th>By</th></tr></thead>
     <tbody>
     {{range $d.Entries}}<tr>

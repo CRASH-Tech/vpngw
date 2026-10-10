@@ -178,7 +178,10 @@ replace each other's entries.
 `ANYCONNECT_ROUTE_LIMIT` (200, and what fits into one RADIUS packet) and
 `IKEV2_ROUTE_LIMIT` (200 traffic selectors) routes; longer lists are merged
 into wider routes (the admin panel's user page says so), while the firewall
-still allows only the exact networks. Tested with 20000 networks and 50000
+still allows only the exact networks. Excluded networks (`!`) inside a
+merged route then go into the tunnel and are blocked there instead of
+leaving through the client's own connection: with long lists keep the
+exclusions few or wide. Tested with 20000 networks and 50000
 `vpnDomains`: every protocol connects in a few seconds. Without the limits
 OpenVPN clients spend long installing routes and IKEv2 clients reject the
 IKE message (strongSwan above about 600 traffic selectors). The IdP sends
@@ -234,7 +237,7 @@ background; ECDHE is used until they are ready.
 - `internal/oidc`, `internal/radius`, `internal/eap`, `internal/policy`,
   `internal/ipam`, `internal/firewall`, `internal/backend/{ocserv,openvpn,strongswan}`,
   `internal/portal`, `internal/admin`, `internal/store`, `internal/tlsmgr`, `internal/supervisor`.
-- `internal/tunnels` + `internal/goproxy` — links to remote sites (goproxy, vendored by `scripts/sync-goproxy.sh`).
+- `internal/tunnels` + `internal/goproxy` — links to remote sites (embedded goproxy node).
 - `templates/` — backend config templates, HTML pages and static assets.
 
 ## Development

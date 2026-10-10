@@ -16,8 +16,6 @@ deploy/dev/.env
 deploy/dev/_data/
 test/e2e/e2e.env
 
-# goproxy source checkout (separate repository, vendored by scripts/sync-goproxy.sh)
-/go-proxy/
 /test/e2e/.state/
 doc/fixes.md
 /vpngw

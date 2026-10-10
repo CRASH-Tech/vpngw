@@ -1,6 +1,7 @@
 package portal
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"vpngw/internal/config"
 	"vpngw/internal/core"
 	"vpngw/internal/policy"
+	"vpngw/internal/secret"
 	"vpngw/internal/store"
 )
 
@@ -71,6 +73,66 @@ func downloadURL(kind, login, host string, saved bool) string {
 	return "/download/" + kind + "?" + q.Encode()
 }
 
+// profileLinkTTL is how long a signed profile link works.
+const profileLinkTTL = 24 * time.Hour
+
+// signedDownloadURL is downloadURL that also works without the portal
+// session, for profiles without secrets. Apple devices install profiles
+// only from Safari: other browsers on iOS hand the link over to Safari,
+// which is not signed in to the portal. The link names the user and works
+// while the password does: a reissued password invalidates it.
+func (s *Server) signedDownloadURL(u *store.User, kind, login, host string) string {
+	link := downloadURL(kind, login, host, false)
+	q := url.Values{}
+	q.Set("u", strconv.FormatInt(u.ID, 10))
+	q.Set("exp", strconv.FormatInt(time.Now().Add(profileLinkTTL).Unix(), 10))
+	q.Set("sig", s.profileLinkMAC(u, kind, login, host, q.Get("exp")))
+	return link + "&" + q.Encode()
+}
+
+func (s *Server) profileLinkMAC(u *store.User, kind, login, host, exp string) string {
+	// The password hash (salted) changes with every reissue.
+	data := fmt.Sprintf("%d|%s|%s|%s|%s|%s", u.ID, u.PwHash, kind, login, host, exp)
+	return hex.EncodeToString(s.Core.Box.MAC("profile-link", []byte(data)))
+}
+
+// handleDownloadRoute serves downloads to the signed-in user, or a
+// signed profile link without a session (see signedDownloadURL).
+func (s *Server) handleDownloadRoute(w http.ResponseWriter, r *http.Request) {
+	if s.CurrentSession(r) == nil {
+		if sess := s.linkSession(r); sess != nil {
+			s.handleDownload(w, r.WithContext(withSession(r.Context(), sess)))
+			return
+		}
+	}
+	s.requireLogin(s.handleDownload)(w, r)
+}
+
+// linkSession returns the user of a valid signed profile link.
+func (s *Server) linkSession(r *http.Request) *Session {
+	q := r.URL.Query()
+	if r.PathValue("kind") != "mobileconfig" || q.Get("sig") == "" {
+		return nil
+	}
+	exp, err := strconv.ParseInt(q.Get("exp"), 10, 64)
+	if err != nil || time.Now().Unix() > exp {
+		return nil
+	}
+	uid, err := strconv.ParseInt(q.Get("u"), 10, 64)
+	if err != nil {
+		return nil
+	}
+	u, err := s.Store.UserByID(uid)
+	if err != nil || !u.HasPassword() {
+		return nil
+	}
+	if !secret.Equal(q.Get("sig"), s.profileLinkMAC(u, "mobileconfig", q.Get("login"), q.Get("ep"), q.Get("exp"))) {
+		return nil
+	}
+	// No portal session behind it: no CSRF token, so it can only download.
+	return &Session{Web: &store.WebSession{}, User: u, Username: u.Username}
+}
+
 func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 	sess := s.CurrentSession(r)
 	eps := s.Cfg.Endpoints()
@@ -101,7 +163,7 @@ func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 		if p, err := s.Core.ProfileFor(nil, ""); err == nil {
 			opts = append(opts, core.LoginOption{Login: sess.Username, Profile: p})
 		}
-		d.Logins = s.loginViews(0, opts, d.Host)
+		d.Logins = s.loginViews(nil, opts, d.Host)
 	} else {
 		u := sess.User
 		d.Email, d.Groups = u.Email, s.Core.VPNGroups(u)
@@ -115,7 +177,7 @@ func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 			d.NextCheck = u.LastCheckAt.Add(s.Cfg.Dur("OIDC_REVALIDATE_INTERVAL"))
 		}
 		d.Sessions = s.Core.UserSessions(u.ID, false)
-		d.Logins = s.loginViews(u.ID, s.Core.AvailableLogins(u), d.Host)
+		d.Logins = s.loginViews(u, s.Core.AvailableLogins(u), d.Host)
 		d.NoRoutes = len(d.Logins) == 0
 	}
 	for _, l := range d.Logins {
@@ -136,17 +198,22 @@ func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, http.StatusOK, "portal", &Page{Title: "My VPN", Nav: "portal", Data: d})
 }
 
-func (s *Server) loginViews(uid int64, opts []core.LoginOption, host string) []LoginView {
+// loginViews lists the logins with their downloads; u is nil for the
+// emergency administrator.
+func (s *Server) loginViews(u *store.User, opts []core.LoginOption, host string) []LoginView {
 	out := make([]LoginView, 0, len(opts))
 	for _, o := range opts {
 		v := LoginView{LoginOption: o, Downloads: map[string]string{}}
-		if uid != 0 && o.Profile != nil && s.Cfg.Bool("ENABLE_OPENVPN") {
+		if u != nil && o.Profile != nil && s.Cfg.Bool("ENABLE_OPENVPN") {
 			// Profile with the login and password saved in it.
 			v.Downloads["ovpn"] = downloadURL("ovpn", o.Login, host, true)
 		}
 		if o.Profile != nil && s.Cfg.Bool("ENABLE_IKEV2") {
 			for _, kind := range []string{"ps1", "mobileconfig", "sswan", "swanctl"} {
 				v.Downloads[kind] = downloadURL(kind, o.Login, host, false)
+			}
+			if u != nil {
+				v.Downloads["mobileconfig"] = s.signedDownloadURL(u, "mobileconfig", o.Login, host)
 			}
 		}
 		out = append(out, v)

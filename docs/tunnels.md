@@ -1,9 +1,8 @@
 # Tunnels to remote sites
 
-vpngw embeds a [goproxy](../go-proxy) node (copied into `internal/goproxy`
-by `scripts/sync-goproxy.sh`). It links the gateway with remote sites
-(data centers); VPN clients connected with AnyConnect, OpenVPN or IKEv2 reach
-the sites' networks through these tunnels.
+vpngw embeds a goproxy node (`internal/goproxy`). It links the gateway with
+remote sites (data centers); VPN clients connected with AnyConnect, OpenVPN
+or IKEv2 reach the sites' networks through these tunnels.
 
 ## Model
 
@@ -211,10 +210,3 @@ than the tunnel.
   interface the node's tunnel address, otherwise the kernel drops replies
   arriving on an interface without an address.
 - The container needs `/dev/net/tun` and `NET_ADMIN` (already required).
-
-## Updating goproxy
-
-```sh
-scripts/sync-goproxy.sh ./go-proxy     # copies node packages, rewrites imports
-go test ./internal/goproxy/... ./internal/tunnels/...
-```

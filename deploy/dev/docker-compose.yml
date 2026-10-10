@@ -1,0 +1,11 @@
+# Development deployment on the build host. Secrets live in .env (not committed).
+services:
+  vpngw:
+    image: vpngw:latest
+    container_name: vpngw
+    network_mode: host
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    volumes: [./_data:/data]
+    restart: unless-stopped
+    env_file: .env

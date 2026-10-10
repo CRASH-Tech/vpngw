@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/netip"
 	"reflect"
 	"strings"
@@ -50,6 +51,59 @@ func TestSubtract(t *testing.T) {
 	}
 }
 
+// subtractSlow is the obvious Subtract: every exclusion cuts every piece.
+func subtractSlow(include, exclude []netip.Prefix) []netip.Prefix {
+	var out []interval
+	for _, x := range toIntervals(include) {
+		cur := []interval{x}
+		for _, e := range toIntervals(exclude) {
+			var next []interval
+			for _, c := range cur {
+				if e.hi < c.lo || e.lo > c.hi {
+					next = append(next, c)
+					continue
+				}
+				if e.lo > c.lo {
+					next = append(next, interval{c.lo, e.lo - 1})
+				}
+				if e.hi < c.hi {
+					next = append(next, interval{e.hi + 1, c.hi})
+				}
+			}
+			cur = next
+		}
+		out = append(out, cur...)
+	}
+	return fromIntervals(mergeIntervals(out))
+}
+
+func TestSubtractRandom(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+	random := func(n int) []netip.Prefix {
+		var out []netip.Prefix
+		for i := 0; i < n; i++ {
+			// a narrow address range, so prefixes overlap and touch
+			a := netip.AddrFrom4([4]byte{10, 0, byte(r.Intn(4)), byte(r.Intn(256))})
+			if r.Intn(20) == 0 {
+				a = netip.AddrFrom4([4]byte{255, 255, 255, byte(r.Intn(256))})
+			}
+			p, _ := a.Prefix(20 + r.Intn(13))
+			out = append(out, p)
+		}
+		return out
+	}
+	for i := 0; i < 2000; i++ {
+		inc, exc := random(r.Intn(8)), random(r.Intn(12))
+		if r.Intn(50) == 0 {
+			inc = append(inc, pfx("0.0.0.0/0")...)
+		}
+		got, want := strs(Subtract(inc, exc)), strs(subtractSlow(inc, exc))
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%v minus %v: got %v want %v", strs(inc), strs(exc), got, want)
+		}
+	}
+}
+
 func TestWiden(t *testing.T) {
 	var in []netip.Prefix
 	for i := 0; i < 50; i++ {
@@ -64,6 +118,46 @@ func TestWiden(t *testing.T) {
 	}
 	if _, w := Widen(pfx("10.0.0.0/8"), 200); w {
 		t.Fatal("nothing to widen")
+	}
+	// The cheapest cover: the /24s next to each other, not the far one.
+	out, _ = Widen(pfx("10.0.0.0/24", "10.0.2.0/24", "10.0.4.0/24", "10.200.0.0/24"), 2)
+	if got, want := strs(out), []string{"10.0.0.0/21", "10.200.0.0/24"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestWidenRandom(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+	for i := 0; i < 300; i++ {
+		var in []netip.Prefix
+		for j := r.Intn(300); j > 0; j-- {
+			a := netip.AddrFrom4([4]byte{byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256)), byte(r.Intn(256))})
+			p, _ := a.Prefix(8 + r.Intn(25))
+			in = append(in, p)
+		}
+		limit := 1 + r.Intn(100)
+		out, _ := Widen(in, limit)
+		if len(out) > limit || !Covers(out, in) {
+			t.Fatalf("%d prefixes, limit %d, covers %v", len(out), limit, Covers(out, in))
+		}
+	}
+}
+
+// Many equal exclusions change at the same price; the limit is still used.
+func TestWidenExclusions(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+	var exc []netip.Prefix
+	for i := 0; i < 1000; i++ {
+		a := netip.AddrFrom4([4]byte{byte(1 + r.Intn(126)), byte(r.Intn(256)), byte(r.Intn(256)), 0})
+		p, _ := a.Prefix(24)
+		exc = append(exc, p)
+	}
+	allow := Subtract(pfx("0.0.0.0/1"), exc)
+	for _, limit := range []int{200, 1000} {
+		out, _ := Widen(allow, limit)
+		if len(out) > limit || len(out) < limit*3/4 || !Covers(out, allow) {
+			t.Fatalf("limit %d: %d prefixes", limit, len(out))
+		}
 	}
 }
 
@@ -294,6 +388,17 @@ func TestLargeLists(t *testing.T) {
 	}
 	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("20000 routes took %v", d)
+	}
+	var exc []netip.Prefix
+	for i := 0; i < 20000; i++ { // "everything except" lists
+		exc = append(exc, netip.PrefixFrom(netip.AddrFrom4([4]byte{byte(1 + i%200), byte(i >> 4), byte(i), 0}), 24))
+	}
+	start = time.Now()
+	if allow := Subtract(pfx("0.0.0.0/0"), exc); Contains(allow, netip.MustParseAddr("1.0.0.1")) || len(allow) < 20000 {
+		t.Fatalf("subtract: %d prefixes", len(allow))
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("20000 exclusions took %v", d)
 	}
 	var ds []string
 	for i := 0; i < 100000; i++ {

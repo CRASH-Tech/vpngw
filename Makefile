@@ -12,7 +12,7 @@ test:
 	go test ./cmd/... ./internal/... ./templates/...
 
 lint:
-	gofmt -l cmd internal templates | grep -v '^internal/goproxy/' | tee /dev/stderr | (! read)
+	gofmt -l cmd internal templates | tee /dev/stderr | (! read)
 	go vet ./cmd/... ./internal/... ./templates/...
 
 image:
@@ -28,7 +28,6 @@ e2e: image
 # Two sites in containers: an exit node and a gateway for its hosts.
 e2e-sites: image
 	docker build -q -t vpngw-testclient test/e2e/client
-	docker build -q -t goproxy:dev go-proxy
 	./test/e2e/sites.sh
 
 clean:

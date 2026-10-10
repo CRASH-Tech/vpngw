@@ -69,11 +69,11 @@ func Encode(pub [32]byte) (repr [32]byte, ok bool) {
 
 	var num, den *field.Element
 	if vbit[0]&1 == 1 {
-		num = new(field.Element).Negate(uA)     // -(u+A)
-		den = new(field.Element).Mult32(u, 2)    // 2u
+		num = new(field.Element).Negate(uA)   // -(u+A)
+		den = new(field.Element).Mult32(u, 2) // 2u
 	} else {
-		num = new(field.Element).Negate(u)       // -u
-		den = new(field.Element).Mult32(uA, 2)   // 2(u+A)
+		num = new(field.Element).Negate(u)     // -u
+		den = new(field.Element).Mult32(uA, 2) // 2(u+A)
 	}
 	r, wasSquare := new(field.Element).SqrtRatio(num, den)
 	if wasSquare != 1 {

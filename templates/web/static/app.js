@@ -117,6 +117,28 @@
     applySort(table);
   });
 
+  // Narrow screens show the rows of <table class="stack"> as blocks: every
+  // cell is labelled with its column header (CSS data-label).
+  function labelCells(table) {
+    const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent.trim());
+    table.querySelectorAll("tbody tr, tfoot tr").forEach((tr) => {
+      let i = 0;
+      Array.from(tr.cells).forEach((td) => {
+        if (heads[i]) td.setAttribute("data-label", heads[i]);
+        i += td.colSpan || 1;
+      });
+    });
+  }
+  document.querySelectorAll("table.stack").forEach(labelCells);
+
+  // The active page of a scrolled navigation bar is in view.
+  const nav = document.querySelector(".nav");
+  const current = nav && nav.querySelector("a.active");
+  if (current && nav.scrollWidth > nav.clientWidth) {
+    const n = nav.getBoundingClientRect(), a = current.getBoundingClientRect();
+    nav.scrollLeft += a.left - n.left - (n.width - a.width) / 2;
+  }
+
   // Live sessions over SSE: <tbody data-sse="/admin/sessions/stream">.
   document.querySelectorAll("[data-sse]").forEach((tbody) => {
     const table = tbody.closest("table");
@@ -135,6 +157,7 @@
         const counter = document.getElementById("session-count");
         if (counter) counter.textContent = data.count;
         applySort(table);
+        if (table.classList.contains("stack")) labelCells(table);
         if (window.htmx) window.htmx.process(tbody);
       });
     }

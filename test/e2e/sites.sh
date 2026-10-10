@@ -28,10 +28,10 @@ docker network create --subnet 10.77.0.0/24 -o com.docker.network.bridge.inhibit
 # "Internet" of site A: a network only site A is connected to.
 docker network create --subnet 10.88.0.0/24 -o com.docker.network.bridge.inhibit_ipv4=true $P-net-x >/dev/null
 
-KEY_A=$(docker run --rm goproxy:dev genkey)
-KEY_B=$(docker run --rm goproxy:dev genkey)
-PUB_A=$(echo "$KEY_A" | docker run --rm -i goproxy:dev pubkey)
-PUB_B=$(echo "$KEY_B" | docker run --rm -i goproxy:dev pubkey)
+KEY_A=$(docker run --rm vpngw:latest genkey)
+KEY_B=$(docker run --rm vpngw:latest genkey)
+PUB_A=$(echo "$KEY_A" | docker run --rm -i vpngw:latest pubkey)
+PUB_B=$(echo "$KEY_B" | docker run --rm -i vpngw:latest pubkey)
 PSK=sites-test-psk
 
 node() { # name ip lan lan-ip env...

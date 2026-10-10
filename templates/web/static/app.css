@@ -79,8 +79,9 @@ input:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
 .card .grid > .field { margin-bottom: 0; }
 .grid-auto { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .grid-3, .grid-4 { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
+/* minmax(0, 1fr): a single column never grows past the screen for wide content */
+@media (max-width: 900px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 24px; } }
 .secret-box .value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row.between { justify-content: space-between; }
@@ -121,12 +122,18 @@ input:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
 .nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .nav a {
   color: var(--text-2); padding: 7px 13px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  white-space: nowrap; flex: none;
 }
 .nav a:hover { text-decoration: none; color: var(--text); background: var(--glass); }
 .nav a.active { color: var(--text); background: var(--glass-strong); box-shadow: inset 0 1px 0 var(--glass-highlight); }
 @media (max-width: 760px) {
-  .topbar { border-radius: 22px; flex-wrap: wrap; margin: 8px 8px 0; }
-  .nav { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  /* nearly opaque: the page scrolls under the sticky bar */
+  .topbar { border-radius: 22px; flex-wrap: wrap; gap: 8px 12px; margin: 8px 8px 0; top: 8px; padding: 10px 12px;
+    background: rgba(13, 18, 32, 0.88); }
+  .nav { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .nav::-webkit-scrollbar { display: none; }
+  .topbar > .faint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* buttons & inputs */
@@ -207,7 +214,9 @@ tfoot td { font-weight: 650; color: var(--text-2); border-bottom: none; }
 .meter > span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
 /* tabs */
-.tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(0,0,0,.25); border: 1px solid var(--glass-border); flex-wrap: wrap; }
+/* radius = button radius + padding: a pill in one row, and the corners
+   still fit the buttons when the tabs wrap onto more rows */
+.tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 22px; background: rgba(0,0,0,.25); border: 1px solid var(--glass-border); flex-wrap: wrap; }
 .tabs button, .tabs a {
   font: inherit; font-size: 14px; font-weight: 600; color: var(--text-2);
   background: transparent; border: 0; border-radius: 999px; padding: 7px 15px; cursor: pointer;
@@ -440,3 +449,24 @@ table.sessions td.profile { max-width: 190px; overflow-wrap: anywhere; }
 .client-name { min-width: 0; overflow-wrap: anywhere; }
 .client-name .faint { font-size: 12px; margin-top: 2px; }
 .client-row .btn { flex: none; }
+
+/* narrow screens: table rows as blocks, each cell with its column header
+   (data-label, set by app.js); the first cell heads the block */
+@media (max-width: 640px) {
+  table.stack, table.stack tbody, table.stack tfoot, table.stack tr, table.stack td { display: block; width: 100%; }
+  table.stack { min-width: 0; }
+  table.stack thead { display: none; }
+  table.stack tr { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+  table.stack td { border: 0; padding: 3px 0; }
+  table.stack td.num { text-align: left; white-space: normal; }
+  table.stack td.profile { max-width: none; }
+  table.stack td:empty { display: none; }
+  table.stack td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px;
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  table.stack td:first-child { font-weight: 600; }
+  table.stack td:first-child .faint { font-weight: 400; }
+  table.stack td:first-child::before { display: none; }
+  table.stack tr:hover td { background: none; }
+  table.stack .actions { flex-direction: row; flex-wrap: wrap; }
+  table.stack .actions form, table.stack .actions .btn { width: auto; }
+}

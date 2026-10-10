@@ -80,7 +80,7 @@
 <section class="card glass section">
   <div class="row between"><h2>Active connections</h2><span class="faint">{{len $d.Sessions}} of {{$d.SessionLimit}} allowed</span></div>
   <div class="table-wrap">
-  <table>
+  <table class="stack">
     <thead><tr><th>Protocol</th><th>Login</th><th>From</th><th>VPN address</th><th>Connected</th><th class="num">Received</th><th class="num">Sent</th><th></th></tr></thead>
     <tbody>
     {{range $d.Sessions}}
@@ -107,7 +107,7 @@
 <details class="card glass section">
   <summary><h2>My networks</h2><span class="faint">{{len $d.Logins}} {{if eq (len $d.Logins) 1}}login{{else}}logins{{end}} — what each login connects to</span></summary>
   <div class="table-wrap">
-  <table>
+  <table class="stack">
     <thead><tr><th>Login</th><th>Networks</th><th>DNS</th><th>Mode</th></tr></thead>
     <tbody>
     {{range $d.Logins}}

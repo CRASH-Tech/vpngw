@@ -1,6 +1,6 @@
 # Progress
 
-Status of the stages from the specification (doc/plan.md).
+Status of the stages from the specification.
 
 | # | Stage | State | Notes |
 |---|---|---|---|
@@ -28,9 +28,9 @@ Status of the stages from the specification (doc/plan.md).
   manual route on the client), traffic counters and admin disconnect, wrong
   password, session limit, password reissue, brute-force block, no secrets in
   logs, tunnels: peer subnets per profile, internet via the host or via a
-  site (`vpnGateway`). A local goproxy node (`test/e2e/fakedc.sh`) plays a
-  remote site with 10.4.0.0/16 and an internet exit; optionally a real site
-  (`E2E_REMOTE_TARGET`).
+  site (`vpnGateway`). A local vpngw node in tunnels-only mode
+  (`test/e2e/fakedc.sh`) plays a remote site with 10.4.0.0/16 and an
+  internet exit; optionally a real site (`E2E_REMOTE_TARGET`).
 
 ## Deviations from the specification
 

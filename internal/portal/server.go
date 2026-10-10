@@ -88,7 +88,7 @@ func New(d Deps) (*Server, error) {
 	s.Mux.HandleFunc("POST /logout", s.requireLogin(s.handleLogout))
 	s.Mux.HandleFunc("POST /password/reissue", s.requireLogin(s.handleReissue))
 	s.Mux.HandleFunc("POST /sessions/disconnect", s.requireLogin(s.handleUserDisconnect))
-	s.Mux.HandleFunc("GET /download/{kind}", s.requireLogin(s.handleDownload))
+	s.Mux.HandleFunc("GET /download/{kind}", s.handleDownloadRoute)
 	s.Mux.HandleFunc("GET /clients/{file...}", s.requireLogin(s.handleClient))
 	// Links of older pages (one-time tokens).
 	s.Mux.HandleFunc("GET /dl/{token}", s.requireLogin(func(w http.ResponseWriter, r *http.Request) {

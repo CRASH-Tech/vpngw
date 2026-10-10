@@ -16,8 +16,8 @@ func ipv4Packet(src, dst [4]byte, payload []byte) []byte {
 	p := make([]byte, total)
 	p[0] = 0x45 // version 4, IHL 5
 	binary.BigEndian.PutUint16(p[2:4], uint16(total))
-	p[8] = 64  // TTL
-	p[9] = 1   // protocol ICMP (arbitrary)
+	p[8] = 64 // TTL
+	p[9] = 1  // protocol ICMP (arbitrary)
 	copy(p[12:16], src[:])
 	copy(p[16:20], dst[:])
 	copy(p[20:], payload)
