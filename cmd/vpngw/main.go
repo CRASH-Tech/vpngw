@@ -40,6 +40,7 @@ import (
 	"vpngw/internal/radius"
 	"vpngw/internal/secret"
 	"vpngw/internal/sni"
+	"vpngw/internal/socks"
 	"vpngw/internal/store"
 	"vpngw/internal/supervisor"
 	"vpngw/internal/tlsmgr"
@@ -263,6 +264,49 @@ func run() error {
 	defer fw.Shutdown()
 	slog.Info("firewall ready", "egress", fw.EgressIface())
 
+	// Optional SOCKS5 proxy: its connections leave like a VPN client's with
+	// vpnGateway SOCKS_GATEWAY; this site's own networks via the host.
+	resolvers := dnsproxy.SystemResolvers()
+	proxy := &socks.Server{
+		Allowed: cfg.SocksNetworks,
+		Mark: func(dst netip.Addr) uint32 {
+			gw := cfg.Str("SOCKS_GATEWAY")
+			if cfg.IsSelf(gw) || policy.Contains(fw.LocalNets(), dst) {
+				gw = ""
+			}
+			return fw.ExitMark(gw)
+		},
+		Resolvers: func() []string {
+			if dns := cfg.Addrs("SOCKS_DNS"); len(dns) > 0 {
+				out := make([]string, len(dns))
+				for i, a := range dns {
+					out[i] = net.JoinHostPort(a.String(), "53")
+				}
+				return out
+			}
+			return resolvers
+		},
+		// VPN clients and the domain proxy's addresses.
+		Denied: func(a netip.Addr) bool { return policy.Contains(prefixes(cfg), a) || domainPool.Contains(a) },
+	}
+	startProxy := func() {
+		proxy.Stop()
+		addr := cfg.Str("SOCKS_LISTEN")
+		if addr == "" {
+			return
+		}
+		if len(cfg.SocksNetworks()) == 0 {
+			slog.Warn("SOCKS proxy: SOCKS_ALLOWED_NETWORKS is empty, every client is refused")
+		}
+		if err := proxy.Start(addr); err != nil {
+			slog.Error("SOCKS proxy cannot start", "listen", addr, "err", err)
+			return
+		}
+		slog.Info("SOCKS proxy ready", "listen", addr, "allowed", cfg.List("SOCKS_ALLOWED_NETWORKS"), "gateway", cfg.Str("SOCKS_GATEWAY"))
+	}
+	startProxy()
+	defer proxy.Stop()
+
 	oc := oidc.New(oidc.Config{
 		Issuer: cfg.Str("OIDC_ISSUER"), ClientID: cfg.Str("OIDC_CLIENT_ID"), ClientSecret: cfg.Str("OIDC_CLIENT_SECRET"),
 		RedirectURL: cfg.PortalURL() + "/oidc/callback", ExtraScopes: cfg.List("OIDC_SCOPES_EXTRA"),
@@ -422,6 +466,9 @@ func run() error {
 				logx.SetLevel(cfg.Str("LOG_LEVEL"))
 			case "TUNNEL_TRANSIT_DOMAINS":
 				transitSet.Store(nil)
+				continue
+			case "SOCKS_LISTEN":
+				startProxy()
 				continue
 			case "TUNNEL_TRANSIT_SOURCES", "TUNNEL_TRANSIT_GATEWAY", "TUNNEL_LOCAL_NETWORKS", "TUNNEL_TRANSIT_DOMAINS_GATEWAY":
 				fw.Reconcile()

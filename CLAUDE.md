@@ -95,6 +95,13 @@ client's DNS is the gateway's own server (first address of
 pool, then maps fake→real and grants the client in nftables
 (`MapDomain`/`GrantDomain`), so only those sites go through `vpnGateway`.
 
+**The gateway's own connections through an exit.** The domain proxy's
+DNS queries and the SOCKS5 proxy (`internal/socks`, `SOCKS_*`) set
+`SO_MARK` from `firewall.ExitMark`/`GatewayMark`, so they are routed like
+a VPN client with that `vpnGateway` (rules 15000–15999, see
+`docs/tunnels.md`); a missing site gets an unreachable table, never the
+host's default route.
+
 **Revalidation (internal/core/revalidate.go).** Every
 `OIDC_REVALIDATE_INTERVAL` each user's refresh token is used against the IdP.
 Group changes update profiles and the firewall live. `invalid_grant` revokes

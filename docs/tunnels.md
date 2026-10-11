@@ -99,6 +99,32 @@ without `OIDC_ISSUER`.
 Without `OIDC_ISSUER` the gateway runs only the tunnels (no AnyConnect,
 OpenVPN or IKEv2); transit is then the way traffic uses them.
 
+## SOCKS5 proxy
+
+Hosts that cannot route through this node (or only some applications)
+can use a SOCKS5 proxy on it instead:
+
+```sh
+SOCKS_LISTEN=0.0.0.0:1080              # empty: off
+SOCKS_ALLOWED_NETWORKS=192.168.10.0/24 # clients; empty: nobody
+SOCKS_GATEWAY=lat                      # exit site; empty: the host's default gateway
+SOCKS_DNS=8.8.8.8                      # resolves names, queried like the connections; empty: the host's resolvers
+```
+
+Its connections leave like those of a VPN client with `vpnGateway` set to
+`SOCKS_GATEWAY`: networks behind the sites through their tunnels, this
+site's own networks through the host's routes, the rest through the exit
+site, which must allow `0.0.0.0/0` for this node. If that site is missing
+or down, the connections fail instead of leaving through the host's
+default gateway. Names (`socks5h://`) are resolved by `SOCKS_DNS` the same
+way, so they are not resolved by the host when the exit is a site.
+
+Only TCP (`CONNECT`) is supported, without user names and passwords:
+access is by client address, and clients outside `SOCKS_ALLOWED_NETWORKS`
+are disconnected at once. The proxy never connects to this host itself
+(loopback, its addresses: the portal, RADIUS, OpenVPN management) or to
+VPN clients. The settings apply without a restart.
+
 ## Site roles
 
 The same image serves every site; `OIDC_ISSUER` empty means tunnels only.

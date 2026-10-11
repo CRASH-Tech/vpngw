@@ -114,6 +114,11 @@ var Defs = []Def{
 	{Key: "TUNNEL_TRANSIT_DOMAINS_DNS", Group: "Tunnels", Help: "DNS servers that resolve TUNNEL_TRANSIT_DOMAINS, queried through their exit. Empty: this host's resolvers."},
 	{Key: "TUNNEL_LOG_CONNECTIONS", Default: "false", Kind: Bool, Group: "Tunnels", Restart: true, Help: "Log every connection through tunnels."},
 
+	{Key: "SOCKS_LISTEN", Group: "Proxy", Help: "SOCKS5 proxy on host:port, e.g. 0.0.0.0:1080. Empty: off."},
+	{Key: "SOCKS_ALLOWED_NETWORKS", Group: "Proxy", Help: "Client networks that may use the proxy. Empty: nobody."},
+	{Key: "SOCKS_GATEWAY", Group: "Proxy", Help: "Exit site for the proxy's connections (networks behind the sites always use their tunnels). Empty: the host's default gateway."},
+	{Key: "SOCKS_DNS", Group: "Proxy", Help: "DNS servers that resolve names for proxy clients, queried like their connections. Empty: this host's resolvers."},
+
 	{Key: "TLS_CERT_FILE", Group: "Certificates", Help: "PEM chain. Empty: DATA_DIR/tls/tls.crt."},
 	{Key: "TLS_KEY_FILE", Group: "Certificates", Help: "Empty: DATA_DIR/tls/tls.key."},
 	{Key: "ACME_ENABLED", Default: "false", Group: "Certificates", Help: "Let's Encrypt when there is no certificate file."},
@@ -267,7 +272,7 @@ func Validate(d *Def, v string) error {
 		_, err := ParsePools(v)
 		return err
 	}
-	if d.Key == "TUNNEL_TRANSIT_SOURCES" || d.Key == "TUNNEL_LOCAL_NETWORKS" || d.Key == "METRICS_ALLOWED_NETWORKS" {
+	if d.Key == "TUNNEL_TRANSIT_SOURCES" || d.Key == "TUNNEL_LOCAL_NETWORKS" || d.Key == "METRICS_ALLOWED_NETWORKS" || d.Key == "SOCKS_ALLOWED_NETWORKS" {
 		for _, item := range SplitList(v) {
 			if p, err := netip.ParsePrefix(item); err != nil || !p.Addr().Is4() {
 				return fmt.Errorf("%q: need IPv4 CIDRs", item)
@@ -299,12 +304,12 @@ func Validate(d *Def, v string) error {
 		if p, err := netip.ParsePrefix(v); err != nil || !p.Addr().Is4() {
 			return errors.New("an IPv4 address with prefix, e.g. 10.255.250.1/32")
 		}
-	case "TUNNEL_LISTEN":
+	case "TUNNEL_LISTEN", "SOCKS_LISTEN":
 		_, port, err := net.SplitHostPort(v)
 		if n, perr := strconv.Atoi(port); err != nil || perr != nil || n < 1 || n > 65535 {
 			return errors.New("host:port, e.g. 0.0.0.0:444")
 		}
-	case "EMERGENCY_GATEWAY", "TUNNEL_TRANSIT_GATEWAY", "TUNNEL_TRANSIT_DOMAINS_GATEWAY":
+	case "EMERGENCY_GATEWAY", "TUNNEL_TRANSIT_GATEWAY", "TUNNEL_TRANSIT_DOMAINS_GATEWAY", "SOCKS_GATEWAY":
 		return policy.ValidGateway(v)
 	case "EMERGENCY_ROUTES":
 		p, err := policy.Build("", []policy.GroupRoutes{{Routes: SplitList(v)}}, nil, "")
@@ -315,7 +320,7 @@ func Validate(d *Def, v string) error {
 			return errors.New(strings.Join(p.Warnings, "; "))
 		}
 	}
-	if d.Key == "VPN_DNS" || d.Key == "VPN_FULL_TUNNEL_DNS" || d.Key == "TUNNEL_TRANSIT_DOMAINS_DNS" {
+	if d.Key == "VPN_DNS" || d.Key == "VPN_FULL_TUNNEL_DNS" || d.Key == "TUNNEL_TRANSIT_DOMAINS_DNS" || d.Key == "SOCKS_DNS" {
 		for _, item := range SplitList(v) {
 			if a, err := netip.ParseAddr(item); err != nil || !a.Is4() {
 				return fmt.Errorf("%q: need IPv4 addresses", item)
@@ -726,6 +731,9 @@ func (c *Config) TransitSources() []netip.Prefix { return c.prefixes("TUNNEL_TRA
 
 // MetricsNetworks returns METRICS_ALLOWED_NETWORKS.
 func (c *Config) MetricsNetworks() []netip.Prefix { return c.prefixes("METRICS_ALLOWED_NETWORKS") }
+
+// SocksNetworks returns the client networks of the SOCKS proxy.
+func (c *Config) SocksNetworks() []netip.Prefix { return c.prefixes("SOCKS_ALLOWED_NETWORKS") }
 
 // LocalNetworks returns TUNNEL_LOCAL_NETWORKS.
 func (c *Config) LocalNetworks() []netip.Prefix { return c.prefixes("TUNNEL_LOCAL_NETWORKS") }

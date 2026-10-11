@@ -157,6 +157,7 @@ Defaults:
 | `VPN_DOMAIN_POOL` | `198.18.0.0/16` | addresses for `vpnDomains` names (domain proxy, see [docs/authentik.md](docs/authentik.md)); the first one is the gateway's DNS server for such logins |
 | `TUNNEL_TRANSIT_DOMAINS` / `_GATEWAY` / `_DNS` | | domain proxy for `TUNNEL_TRANSIT_SOURCES`, see [docs/tunnels.md](docs/tunnels.md) |
 | `EMERGENCY_DOMAINS` | | domains the emergency administrator reaches through `EMERGENCY_GATEWAY` |
+| `SOCKS_LISTEN` / `SOCKS_ALLOWED_NETWORKS` / `SOCKS_GATEWAY` / `SOCKS_DNS` | | optional SOCKS5 proxy: address (e.g. `0.0.0.0:1080`, empty: off), client networks (empty: nobody), exit site, resolvers; see [docs/tunnels.md](docs/tunnels.md) |
 | `CLIENTS_DIR` | `/usr/share/vpngw/clients` | client installers offered in the portal, see below |
 | `LOG_LEVEL` | `info` | |
 

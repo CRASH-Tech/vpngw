@@ -203,7 +203,7 @@ func TestCheckEnv(t *testing.T) {
 	t.Setenv("TUNNEL_PEER_POOL_SUBNETS", "10.250.1.0/24")
 	t.Setenv("TUNNEL_PEER_GOOD_SUBNET", "10.5.0.0/16")
 	t.Setenv("TUNNEL_PEER_NOKEY_ENDPOINT", "dc.example.com:444")
-	m.Cfg = config.NewFromMap(map[string]string{"TUNNEL_ADDRESS": "10.255.250.1/32", "TUNNEL_TRANSIT_GATEWAY": "NOPE"})
+	m.Cfg = config.NewFromMap(map[string]string{"TUNNEL_ADDRESS": "10.255.250.1/32", "TUNNEL_TRANSIT_GATEWAY": "NOPE", "SOCKS_GATEWAY": "NOPE2"})
 	all := strings.Join(append(CheckEnv(m.Cfg, pools), m.CheckTransitGateway()...), "\n")
 	for _, w := range []string{
 		"TUNNEL_PEER_ALL: networks behind the site: 0.0.0.0/0",
@@ -213,6 +213,7 @@ func TestCheckEnv(t *testing.T) {
 		"unknown setting TUNNEL_PEER_GOOD_SUBNET (did you mean TUNNEL_PEER_GOOD_SUBNETS?)",
 		"TUNNEL_PEER_NOKEY_PUBLIC_KEY: required",
 		"TUNNEL_TRANSIT_GATEWAY: no site NOPE",
+		"SOCKS_GATEWAY: no site NOPE2",
 	} {
 		if !strings.Contains(all, w) {
 			t.Errorf("missing %q in:\n%s", w, all)

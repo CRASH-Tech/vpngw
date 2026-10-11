@@ -240,19 +240,27 @@ func CheckEnv(cfg *config.Config, pools []netip.Prefix) []string {
 	return problems
 }
 
-// CheckTransitGateway reports a TUNNEL_TRANSIT_GATEWAY from the
-// environment that names no internet exit site.
+// CheckTransitGateway reports a TUNNEL_TRANSIT_GATEWAY or SOCKS_GATEWAY
+// from the environment that names no internet exit site.
 func (m *Manager) CheckTransitGateway() []string {
-	gw, src := m.Cfg.Resolve("TUNNEL_TRANSIT_GATEWAY")
-	if gw == "" || src != config.SourceEnv || m.Cfg.IsSelf(gw) {
-		return nil
+	var out []string
+	for _, key := range []string{"TUNNEL_TRANSIT_GATEWAY", "SOCKS_GATEWAY"} {
+		gw, src := m.Cfg.Resolve(key)
+		if gw == "" || src != config.SourceEnv || m.Cfg.IsSelf(gw) || m.isExit(gw) {
+			continue
+		}
+		out = append(out, key+": no site "+gw+" marked as internet exit (TUNNEL_PEER_"+gw+"_EXIT=true)")
 	}
+	return out
+}
+
+func (m *Manager) isExit(gw string) bool {
 	for _, p := range m.Peers() {
 		if (strings.EqualFold(p.Name, gw) || strings.EqualFold(p.Interface(), gw)) && p.Exit {
-			return nil
+			return true
 		}
 	}
-	return []string{"TUNNEL_TRANSIT_GATEWAY: no site " + gw + " marked as internet exit (TUNNEL_PEER_" + gw + "_EXIT=true)"}
+	return false
 }
 
 func parsePrefixes(s string) ([]netip.Prefix, error) {

@@ -49,7 +49,7 @@ func (a *Admin) settings(w http.ResponseWriter, r *http.Request) {
 		groups[i].Settings = append(groups[i].Settings, sv)
 	}
 	// Tabs in a fixed order; OIDC-dependent groups are hidden without user VPN.
-	order := []string{"General", "OIDC", "Tunnels", "Network", "Protocols", "Certificates", "Admin", "Security"}
+	order := []string{"General", "OIDC", "Tunnels", "Proxy", "Network", "Protocols", "Certificates", "Admin", "Security"}
 	vpnOnly := map[string]bool{"Network": true, "Protocols": true}
 	var tabs []settingGroup
 	for _, name := range order {

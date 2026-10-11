@@ -5,7 +5,8 @@
 #            (its LAN 10.66.0.0/23 also has 10.66.1.10, which must stay closed)
 #   site B — gateway for its hosts (10.77.0.0/24) to site A's network, and
 #            lets hosts of site A reach its network back; its hosts reach
-#            site.test (in site A's "internet") through the domain proxy
+#            site.test (in site A's "internet") through the domain proxy;
+#            a SOCKS5 proxy for its hosts with site A as exit
 # Both keep the default (automatic) TUNNEL_ADDRESS; B connects to A and gets
 # its tunnel address from A.
 # Requires the image vpngw:latest and vpngw-testclient (test/e2e/client).
@@ -54,7 +55,8 @@ node b 172.31.240.20 lan-b 10.77.0.2 \
   -e TUNNEL_PRIVATE_KEY=$KEY_B -e TUNNEL_TRANSIT_SOURCES=10.77.0.0/24 -e TUNNEL_TRANSIT_GATEWAY=SITEA \
   -e TUNNEL_PEER_SITEA_PUBLIC_KEY=$PUB_A -e TUNNEL_PEER_SITEA_ENDPOINT=172.31.240.10:444 -e TUNNEL_PEER_SITEA_SUBNETS=10.66.0.0/23 \
   -e TUNNEL_PEER_SITEA_ALLOW=10.77.0.0/24 -e TUNNEL_PEER_SITEA_EXIT=true \
-  -e "TUNNEL_TRANSIT_DOMAINS=site.test !private.site.test" -e TUNNEL_TRANSIT_DOMAINS_GATEWAY=SITEA -e TUNNEL_TRANSIT_DOMAINS_DNS=10.88.0.10
+  -e "TUNNEL_TRANSIT_DOMAINS=site.test !private.site.test" -e TUNNEL_TRANSIT_DOMAINS_GATEWAY=SITEA -e TUNNEL_TRANSIT_DOMAINS_DNS=10.88.0.10 \
+  -e SOCKS_LISTEN=0.0.0.0:1080 -e SOCKS_ALLOWED_NETWORKS=10.77.0.0/24 -e SOCKS_GATEWAY=SITEA -e SOCKS_DNS=10.88.0.10
 
 client() { # name lan ip gateway
   docker run -d --rm --name $P-$1 --network $P-$2 --ip $3 --cap-add NET_ADMIN vpngw-testclient >/dev/null
@@ -107,6 +109,15 @@ check "domain proxy: its connections reach the name's real address through the e
 check "domain proxy: an excluded subdomain (!private.site.test) is not given a pool address" "! docker exec $P-host-b dig +short +time=3 @198.18.0.1 www.private.site.test A | grep -q '^198\.18\.'"
 check "domain proxy: unknown names are not given pool addresses" "! docker exec $P-host-b dig +short +time=3 @198.18.0.1 other.test A | grep -q '^198\.18\.'"
 check "domain proxy: site A without TUNNEL_TRANSIT_DOMAINS gives its hosts no pool addresses" "! docker exec $P-target dig +short +time=3 @198.18.0.1 www.site.test A | grep -q '^198\.18\.'"
+# SOCKS5 proxy on site B: its connections leave like a VPN client's with
+# vpnGateway SITEA; names resolved by SOCKS_DNS through the exit.
+S="--socks5 10.77.0.2:1080"
+check "socks: a host reaches the network behind site A through the proxy" "[ \"\$(docker exec $P-host-b curl -s -m 60 $S -o /dev/null -w '%{size_download}' http://10.66.0.10:8080/10M)\" = 10000000 ]"
+check "socks: a name is resolved by SOCKS_DNS through the exit site" "[ \"\$(docker exec $P-host-b curl -s -m 60 --socks5-hostname 10.77.0.2:1080 -o /dev/null -w '%{size_download}' http://www.site.test:8080/10M)\" = 10000000 ]"
+check "socks: the node's own services are refused (loopback)" "! docker exec $P-host-b curl -s -m 5 $S -o /dev/null http://127.0.0.1:8443/"
+check "socks: the node's own services are refused (its LAN address)" "! docker exec $P-host-b curl -sk -m 5 $S -o /dev/null https://10.77.0.2:8443/healthz"
+check "control: the portal answers without the proxy" "[ \"\$(docker exec $P-host-b curl -sk -m 5 -o /dev/null -w '%{http_code}' https://10.77.0.2:8443/healthz)\" = 200 ]"
+check "socks: clients outside SOCKS_ALLOWED_NETWORKS are refused (site A's host)" "! docker exec $P-target curl -s -m 5 --socks5 10.77.0.2:1080 -o /dev/null http://10.77.0.10:8080/1"
 
 [ -n "${KEEP:-}" ] || cleanup
 exit $fail

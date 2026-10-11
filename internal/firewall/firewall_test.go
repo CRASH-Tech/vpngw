@@ -1,6 +1,8 @@
 package firewall
 
 import (
+	"context"
+	"errors"
 	"net/netip"
 	"strings"
 	"testing"
@@ -151,5 +153,41 @@ func TestLocalNetworks(t *testing.T) {
 	}
 	if strings.Contains(all, "local_nets { 0.0.0.0/0") || strings.Contains(all, ", 0.0.0.0/0 }") {
 		t.Error("0.0.0.0/0 is never a local network")
+	}
+}
+
+func TestExitMark(t *testing.T) {
+	m := New(Options{Pools: []netip.Prefix{netip.MustParsePrefix("10.250.0.0/20")}, DryRun: true,
+		Resolve: func(gw string) Target {
+			if gw == "dc1" {
+				return Target{Dev: "gp-dc1", Tunnel: true}
+			}
+			return Target{}
+		}})
+	_ = m.Init()
+	if got := m.ExitMark(""); got != markBase {
+		t.Fatalf("no exit: mark 0x%x, want the base mark (peer subnets, then the host's routes)", got)
+	}
+	m.Log = nil
+	if got := m.ExitMark("dc1"); got != markBase+1 || m.ExitMark("dc1") != got {
+		t.Fatalf("exit dc1: mark 0x%x", got)
+	}
+	all := strings.Join(m.Log, "\n")
+	if !strings.Contains(all, "rule add priority 15011 fwmark 0x76670001 lookup 15101") || !strings.Contains(all, "default dev gp-dc1 table 15101") {
+		t.Fatalf("exit routing missing:\n%s", all)
+	}
+	// A site whose interface is missing: unreachable, never the host's
+	// default route.
+	run := m.run
+	m.run = func(ctx context.Context, name, stdin string, args ...string) (string, error) {
+		out, err := run(ctx, name, stdin, args...)
+		if name == "ip" && strings.Contains(strings.Join(args, " "), "route replace default dev nope") {
+			return out, errors.New("Cannot find device")
+		}
+		return out, err
+	}
+	m.Log = nil
+	if m.ExitMark("nope") != markBase+2 || !strings.Contains(strings.Join(m.Log, "\n"), "route replace unreachable default table 15102") {
+		t.Fatalf("missing site must be unreachable:\n%s", strings.Join(m.Log, "\n"))
 	}
 }

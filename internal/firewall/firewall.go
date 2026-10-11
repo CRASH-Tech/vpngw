@@ -513,6 +513,22 @@ func (m *Manager) GatewayMark(gw string) uint32 {
 	return markBase + uint32(idx)
 }
 
+// ExitMark is the routing mark (SO_MARK) for the gateway's own connections
+// that leave like those of a VPN client with vpnGateway gw: networks behind
+// the sites through their tunnels, the rest through gw ("": the host's
+// default route). The gateway's routing is set up when nothing uses it
+// yet; without such a site its table is unreachable, so the connections
+// fail instead of leaking through the host's default route.
+func (m *Manager) ExitMark(gw string) uint32 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if gw == "" {
+		return markBase
+	}
+	m.ensureGateway(gw)
+	return markBase + uint32(m.gateways[gw])
+}
+
 // Deleting a missing element fails the whole transaction, so every session
 // gets a sessmark element; markBase has no routing rule (main table).
 func (m *Manager) gatewayMark(gw string) (uint32, bool) {
